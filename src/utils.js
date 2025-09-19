@@ -1,4 +1,7 @@
 export function ts(){return new Date().toLocaleTimeString([], {hour12:false});}
 export function log(el,type,msg){const line=document.createElement('div');const t=document.createElement('span');t.className='ts';t.textContent=`[${ts()}] `;const tag=document.createElement('span');tag.className='tag';tag.textContent=type?`${type}: `:'';const text=document.createElement('span');if(type==='ERROR')text.className='err';text.textContent=msg;line.append(t,tag,text);el.append(line);el.scrollTop=el.scrollHeight;}
-export const shortUuid = (u)=>!u?'':(u.toLowerCase().length>8?u.toLowerCase().slice(0,8)+'…':u.toLowerCase());
-export const bufferToHex = (buf)=>Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+export const shortUuid=(u)=>!u?'':(u.toLowerCase().length>8?u.toLowerCase().slice(0,8)+'…':u.toLowerCase());
+export const bufferToHex=(buf)=>Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+export const bufferToText=(buf)=>{try{return new TextDecoder().decode(buf);}catch{return ''}};
+export const bufferToBase64=(buf)=>{let s='';const u8=new Uint8Array(buf);for(const b of u8)s+=String.fromCharCode(b);return btoa(s);};
+export function encodePayload(input,enc){if(enc==='hex'){const clean=input.replace(/\s+/g,'').toLowerCase();if(!/^([0-9a-f]{2})+$/.test(clean))throw new Error('Ungültiges Hex');const bytes=clean.match(/.{1,2}/g).map(h=>parseInt(h,16));return new Uint8Array(bytes).buffer;}if(enc==='base64'){const bin=atob(input.trim());const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return bytes.buffer;}return new TextEncoder().encode(input).buffer;}
