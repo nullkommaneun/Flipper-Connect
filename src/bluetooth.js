@@ -1,0 +1,1 @@
+export class BluetoothManager{constructor(){this.device=null;this.server=null;}static preflight(){return !!navigator.bluetooth;}async connect(){this.device=await navigator.bluetooth.requestDevice({acceptAllDevices:true});this.server=await this.device.gatt.connect();return this.server.connected;}async disconnect(){if(this.device?.gatt?.connected)this.device.gatt.disconnect();}}
