@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flipper Web Bluetooth Workbench</title>
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.min.css">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="container">
+    <h1>Flipper Web Bluetooth Workbench</h1>
+    <p id="preflight" class="badge">Preflight läuft…</p>
+  </header>
+  <main class="container">
+    <section>
+      <h2>Verbindung</h2>
+      <button id="btnConnect">Verbinden</button>
+      <button id="btnDisconnect" disabled>Trennen</button>
+      <span id="connState">Getrennt</span>
+    </section>
+    <section>
+      <h2>Service & Characteristic Explorer</h2>
+      <div id="explorer"></div>
+    </section>
+    <section>
+      <h2>Konsole</h2>
+      <pre id="log"></pre>
+    </section>
+  </main>
+  <footer class="container">
+    <small>Web Bluetooth • GitHub Pages</small>
+  </footer>
+  <script type="module" src="./src/ui.js"></script>
+</body>
+</html>
