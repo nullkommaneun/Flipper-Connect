@@ -26,17 +26,24 @@
       <div id="explorer" class="accordion"></div>
     </section>
     <section>
-      <h2>Konsole</h2>
-      <pre id="log" class="log" tabindex="0"></pre>
+      <h2>Terminal</h2>
+      <pre id="terminalLog" class="log" tabindex="0"></pre>
       <div class="grid grid-actions">
-        <button id="btnClearLog" class="secondary">Konsole leeren</button>
-        <button id="btnCopyLog" class="secondary">Kopieren</button>
+        <select id="charSelect"></select>
+        <select id="encoding">
+          <option value="text">Text</option>
+          <option value="hex">Hex</option>
+          <option value="base64">Base64</option>
+        </select>
       </div>
+      <textarea id="terminalInput" rows="3" placeholder="Befehl eingeben…"></textarea>
+      <button id="btnSend" class="contrast" disabled>Senden</button>
     </section>
   </main>
   <footer class="container">
     <small>Web Bluetooth • GitHub Pages</small>
   </footer>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script type="module" src="./src/ui.js"></script>
 </body>
 </html>
