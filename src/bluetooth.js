@@ -1,10 +1,20 @@
-import known from '../flipper_services.json' assert { type: 'json' };
-
 export class BluetoothManager{
   constructor({onDisconnect}={}){this.device=null;this.server=null;this.chars=new Map();this.onDisconnect=onDisconnect;}
   static preflight(){return !!(navigator.bluetooth && navigator.bluetooth.requestDevice);}
+
+  async _loadServiceUUIDs(){
+    const FALLBACK=['0000180F-0000-1000-8000-00805F9B34FB','0000180A-0000-1000-8000-00805F9B34FB','19ed82ae-ed21-4c9d-4145-228e62fe0000'];
+    try{
+      const res=await fetch('./flipper_services.json',{cache:'no-store'});
+      if(!res.ok) return FALLBACK;
+      const j=await res.json();
+      const uuids=(j?.flipper_services||[]).map(s=>s.uuid).filter(Boolean);
+      return uuids.length?uuids:FALLBACK;
+    }catch{ return FALLBACK; }
+  }
+
   async connect({filters=[]}={}){
-    const optionalServices = known.flipper_services.map(s=>s.uuid);
+    const optionalServices = await this._loadServiceUUIDs();
     const options = filters.length?{filters, optionalServices}:{acceptAllDevices:true, optionalServices};
     this.device = await navigator.bluetooth.requestDevice(options);
     this.device.addEventListener('gattserverdisconnected', ()=>this.onDisconnect?.());
@@ -12,6 +22,7 @@ export class BluetoothManager{
     return this.server.connected;
   }
   async disconnect(){try{if(this.device?.gatt?.connected)this.device.gatt.disconnect();}finally{this.server=null;this.device=null;this.chars.clear();}}
+
   async discover(){
     if(!this.server) throw new Error('Nicht verbunden.');
     const out=[]; const services=await this.server.getPrimaryServices();
