@@ -1,4 +1,4 @@
-:root{--gap:.75rem;}
+:root{--gap:.75rem}
 header.container{margin-top:1rem}
 .badge{padding:.25rem .5rem;border-radius:.5rem;background:#1f2937;color:#e5e7eb}
 .state{align-self:center;font-weight:600}

@@ -2,59 +2,15 @@
   "flipper_services": [
     {
       "uuid": "0000180F-0000-1000-8000-00805F9B34FB",
-      "name": "Battery Service",
-      "characteristics": [
-        {
-          "uuid": "00002A19-0000-1000-8000-00805F9B34FB",
-          "name": "Battery Level",
-          "properties": [
-            "read",
-            "notify"
-          ]
-        }
-      ]
+      "name": "Battery Service"
     },
     {
       "uuid": "0000180A-0000-1000-8000-00805F9B34FB",
-      "name": "Device Information Service",
-      "characteristics": [
-        {
-          "uuid": "00002A29-0000-1000-8000-00805F9B34FB",
-          "name": "Manufacturer Name String",
-          "properties": [
-            "read"
-          ]
-        },
-        {
-          "uuid": "00002A24-0000-1000-8000-00805F9B34FB",
-          "name": "Model Number String",
-          "properties": [
-            "read"
-          ]
-        },
-        {
-          "uuid": "00002A26-0000-1000-8000-00805F9B34FB",
-          "name": "Firmware Revision String",
-          "properties": [
-            "read"
-          ]
-        }
-      ]
+      "name": "Device Information Service"
     },
     {
       "uuid": "19ed82ae-ed21-4c9d-4145-228e62fe0000",
-      "name": "Flipper Serial / BT Serial Service (Community)",
-      "characteristics": [
-        {
-          "uuid": "19ed82ae-ed21-4c9d-4145-228e62fe0000",
-          "name": "Serial Data I/O",
-          "properties": [
-            "read",
-            "write",
-            "notify"
-          ]
-        }
-      ]
+      "name": "Flipper Serial / BT Serial Service (Community)"
     }
   ]
 }
