@@ -32,12 +32,12 @@ function renderExplorer(tree){
 
 document.addEventListener('DOMContentLoaded', ()=>{
   setPreflight();
-  mgr=new BluetoothManager({onDisconnect:()=>{setConnectedUI(false); log(el.log,'DISCONNECTED','Getrennt');}});
+  mgr=new BluetoothManager({onDisconnect:()=>{setConnectedUI(false); log(el.log,'DISCONNECTED','Getrennt');}, logEl: el.log});
 
   el.connect.addEventListener('click', async ()=>{
     try{
       log(el.log,'INFO','Geräteauswahl …');
-      const ok=await mgr.connect(); // acceptAllDevices + optionalServices aus JSON
+      const ok=await mgr.connect(); // acceptAllDevices + optionalServices
       if(ok){ setConnectedUI(true); log(el.log,'CONNECTED', mgr.device?.name || 'Unbekannt'); const tree=await mgr.discover(); renderExplorer(tree); }
     }catch(e){ log(el.log,'ERROR', e.message || String(e)); }
   });
