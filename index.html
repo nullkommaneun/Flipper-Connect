@@ -6,31 +6,43 @@
   <title>Flipper Web Bluetooth Workbench</title>
   <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.min.css">
   <link rel="stylesheet" href="style.css" />
+  <meta name="theme-color" content="#0b1020" />
 </head>
 <body>
   <header class="container">
     <h1>Flipper Web Bluetooth Workbench</h1>
     <p id="preflight" class="badge">Preflight läuft…</p>
   </header>
+
   <main class="container">
     <section>
       <h2>Verbindung</h2>
-      <button id="btnConnect">Verbinden</button>
-      <button id="btnDisconnect" disabled>Trennen</button>
-      <span id="connState">Getrennt</span>
+      <div class="grid grid-connect">
+        <button id="btnConnect" class="contrast">Verbinden</button>
+        <button id="btnDisconnect" class="secondary" disabled>Trennen</button>
+        <span id="connState" class="state">Getrennt</span>
+      </div>
     </section>
+
     <section>
       <h2>Service & Characteristic Explorer</h2>
-      <div id="explorer"></div>
+      <div id="explorer" class="accordion"></div>
     </section>
+
     <section>
       <h2>Konsole</h2>
-      <pre id="log"></pre>
+      <pre id="log" class="log" tabindex="0"></pre>
+      <div class="grid grid-actions">
+        <button id="btnClearLog" class="secondary">Konsole leeren</button>
+        <button id="btnCopyLog" class="secondary">Kopieren</button>
+      </div>
     </section>
   </main>
+
   <footer class="container">
     <small>Web Bluetooth • GitHub Pages</small>
   </footer>
+
   <script type="module" src="./src/ui.js"></script>
 </body>
 </html>

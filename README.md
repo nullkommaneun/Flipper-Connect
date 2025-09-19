@@ -1,8 +1,4 @@
-# Flipper Web Bluetooth Workbench
-
-Rein clientseitige Web-App für Flipper Zero via Web Bluetooth.
-
-## Nutzung
-1. Repo auf GitHub hochladen.
-2. Pages aktivieren.
-3. Mit Chrome/Edge öffnen.
+# Flipper Web Bluetooth Workbench (Fix-Build)
+- Preflight aktualisiert sich korrekt.
+- Nach dem Verbinden werden Services & Characteristics per `discover()` geladen und im Explorer gerendert.
+- `optionalServices` stammen aus `flipper_services.json` (Battery, Device Info, Community-Serial).
