@@ -35,7 +35,7 @@ function renderExplorer(tree){
       const br=document.createElement('button');br.textContent='Lesen';br.disabled=!c.props.read;br.addEventListener('click',async()=>{try{const buf=await mgr.read(c.uuid);log(el.log,'READ',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);}catch(e){log(el.log,'ERROR',e.message);}});
       const bw=document.createElement('button');bw.textContent='Schreiben';bw.disabled=!c.props.write;bw.addEventListener('click',async()=>{try{const payload=prompt('Payload');if(!payload)return;const buf=encodePayload(payload,'text');await mgr.write(c.uuid,buf);log(el.log,'WRITE',`${c.uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
       const bn=document.createElement('button');bn.textContent='Subscribe';bn.disabled=!c.props.notify;let sub=false;let unsub=null;bn.addEventListener('click',async()=>{try{if(!sub){unsub=await mgr.startNotifications(c.uuid,(buf)=>{log(el.log,'NOTIFY',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);});bn.textContent='Unsubscribe';sub=true;}else{unsub?.();bn.textContent='Subscribe';sub=false;}}catch(e){log(el.log,'ERROR',e.message);}});
-      act.append(br,bw,bn);row.append(lt,act);inner.append(row);const opt=document.createElement('option');opt.value=c.uuid;opt.textContent=shortUuid(c.uuid);el.charSelect.append(opt);}d.append(inner);el.explorer.append(d);}}
+      act.append(br,bw,bn);row.append(lt,act);inner.append(row);const opt=document.createElement('option');opt.value=c.uuid;opt.textContent=c.uuid;el.charSelect.append(opt);}d.append(inner);el.explorer.append(d);}}
 
 // --- ANGEPASST: Callback-Funktion für die Datenjagd (Phase 2) ---
 /**
