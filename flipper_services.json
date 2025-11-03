@@ -2,15 +2,22 @@
   "flipper_services": [
     {
       "uuid": "0000180f-0000-1000-8000-00805f9b34fb",
-      "name": "battery service"
+      "name": "Standard: Battery Service"
     },
     {
       "uuid": "0000180a-0000-1000-8000-00805f9b34fb",
-      "name": "device information service"
+      "name": "Standard: Device Information Service"
     },
     {
-      "uuid": "19ed82ae-ed21-4c9d-4145-228e62fe0000",
-      "name": "flipper serial / bt serial (community)"
+      "uuid": "8fe5b3d5-2e7f-4a98-2a48-7acc60fe0000",
+      "name": "Flipper: RPC Service (Das 'Schloss')",
+      "characteristics": [
+        {
+          "uuid": "19ed82ae-ed21-4c9d-4145-228e64fe0000",
+          "name": "RPC Command Channel (Der 'Schlüssel')",
+          "info": "HIER musst du 'bt scan' + 0D senden & lauschen!"
+        }
+      ]
     }
   ]
 }
