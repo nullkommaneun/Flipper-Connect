@@ -1,3 +1,54 @@
-.log{height:240px;overflow:auto;background:#0b1020;color:#d1e7ff;border-radius:.5rem;padding:.75rem}
-.ts{color:#67e8f9}.tag{color:#a7f3d0}.err{color:#fecaca}
-button[disabled]{opacity:.6;cursor:not-allowed}
+/* Grund-Layout für die Handy-Ansicht */
+body {
+    font-family: sans-serif;
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+    padding: 1rem;
+}
+
+/* WICHTIG: Stile für Dropdowns und Buttons */
+select, button, input[type="text"] {
+    width: 100%; /* Füllt die Bildschirmbreite */
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid #444;
+    background: #333;
+    color: #f0f0f0;
+    font-size: 1rem;
+    
+    /* Wichtig, damit padding + width = 100% funktioniert */
+    box-sizing: border-box; 
+}
+
+/* Das Dropdown-Menü selbst */
+select {
+    /* Wichtig: Verhindert, dass der Text abgeschnitten wird */
+    text-overflow: ellipsis;
+}
+
+/* Die Optionen im Dropdown */
+option {
+    /* Versucht, den Text kleiner zu machen, damit er passt */
+    font-size: 0.9rem; 
+}
+
+/* Dein vorhandener Log-Stil */
+.log {
+    height: 240px;
+    overflow: auto;
+    background: #0b1020;
+    color: #d1e7ff;
+    border-radius: .5rem;
+    padding: .75rem;
+    
+    /* Hilft beim Zeilenumbruch von langen Log-Einträgen */
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Deine vorhandenen Text-Stile */
+.ts { color: #67e8f9; }
+.tag { color: #a7f3d0; }
+.err { color: #fecaca; }
+button[disabled] { opacity: .6; cursor: not-allowed; }
