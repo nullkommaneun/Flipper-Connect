@@ -1,8 +1,7 @@
-```javascript
 import {BluetoothManager} from './bluetooth.js';
 import {log, shortUuid, bufferToHex, bufferToText, bufferToBase64, encodePayload} from './utils.js';
 
-// 1. NEUEN KNOPF ZUM 'el'-OBJEKT HINZUGEFÜGT
+// 1. NEUE KNÖPFE ZUM 'el'-OBJEKT HINZUGEFÜGT
 const $=s=>document.querySelector(s);
 const el={
     preflight:$('#preflight'),
@@ -15,9 +14,9 @@ const el={
     encoding:$('#encoding'),
     input:$('#terminalInput'),
     send:$('#btnSend'),
+    // --- NEU ---
     startScan: $('#btnStartScan'),
     stopScan: $('#btnStopScan'),
-    // --- NEU ---
     download: $('#btnDownloadLog') 
 };
 let mgr;
@@ -40,7 +39,8 @@ function renderExplorer(tree){
 
 // --- ANGEPASST: Callback-Funktion für die Datenjagd (Phase 2) ---
 /**
- * Loggt UND SPEICHERT die Beacon-Daten.
+ * Dies ist der "Lauscher", der die Beacon-Daten empfängt und ins Terminal loggt.
+ * @param {BluetoothAdvertisingEvent} event - Das Rohdaten-Paket vom Beacon.
  */
 function handleBeaconData(event) {
     const deviceName = event.device.name || 'Unbekanntes Gerät';
