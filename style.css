@@ -37,3 +37,33 @@ button[disabled] {
 }
 
  
+/* ... (deine vorhandenen .log, .ts, .tag, .err Stile) ... */
+
+/* NEU: Stile für den Service & Characteristic Explorer */
+/* Ersetzt die alten Inline-JavaScript-Stile */
+
+.explorer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0; /* Etwas Abstand */
+    border-bottom: 1px solid var(--pico-muted-border-color); /* Passt zu Picos Design */
+}
+
+/* Letzte Zeile in einer Sektion hat keinen Rand unten */
+details[open] .explorer-row:last-child {
+    border-bottom: none;
+}
+
+.explorer-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0; /* Verhindert, dass Buttons auf Mobilgeräten gequetscht werden */
+}
+
+/* Kleinere Buttons im Explorer, damit sie besser passen */
+.explorer-actions button {
+    --pico-font-size: 0.875rem; /* 14px */
+    padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+}
