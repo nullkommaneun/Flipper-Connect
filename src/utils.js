@@ -3,7 +3,7 @@
  * @returns {string}
  */
 export function ts() {
-    // ... (Code unverändert)
+    return new Date().toLocaleTimeString([], { hour12: false });
 }
 
 /**
@@ -13,7 +13,21 @@ export function ts() {
  * @param {string} msg
  */
 export function log(el, type, msg) {
-    // ... (Code unverändert)
+    const line = document.createElement('div');
+    const t = document.createElement('span');
+    t.className = 'ts';
+    t.textContent = `[${ts()}] `;
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = type ? `${type}: ` : '';
+    const text = document.createElement('span');
+    if (type === 'ERROR') {
+        text.className = 'err';
+    }
+    text.textContent = msg;
+    line.append(t, tag, text);
+    el.append(line);
+    el.scrollTop = el.scrollHeight;
 }
 
 /**
@@ -22,7 +36,9 @@ export function log(el, type, msg) {
  * @returns {string}
  */
 export const shortUuid = (u) => {
-    // ... (Code unverändert)
+    if (!u) return '';
+    const lower = u.toLowerCase();
+    return lower.length > 8 ? lower.slice(0, 8) + '…' : lower;
 };
 
 /**
@@ -31,7 +47,9 @@ export const shortUuid = (u) => {
  * @returns {string}
  */
 export const bufferToHex = (buf) => {
-    // ... (Code unverändert)
+    return Array.from(new Uint8Array(buf))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join(' ');
 };
 
 /**
@@ -40,7 +58,11 @@ export const bufferToHex = (buf) => {
  * @returns {string}
  */
 export const bufferToText = (buf) => {
-    // ... (Code unverändert)
+    try {
+        return new TextDecoder().decode(buf);
+    } catch {
+        return '';
+    }
 };
 
 /**
@@ -49,7 +71,8 @@ export const bufferToText = (buf) => {
  * @returns {string}
  */
 export const bufferToBase64 = (buf) => {
-    // ... (Code unverändert)
+    const s = new TextDecoder('latin1').decode(buf);
+    return btoa(s);
 };
 
 /**
@@ -59,17 +82,38 @@ export const bufferToBase64 = (buf) => {
  * @returns {ArrayBuffer}
  */
 export function encodePayload(input, enc) {
-    // ... (Code unverändert)
+    if (enc === 'hex') {
+        const clean = input.replace(/\s+/g, '').toLowerCase();
+        if (!/^([0-9a-f]{2})+$/.test(clean)) {
+            throw new Error('Ungültiges Hex-Format');
+        }
+        const bytes = clean.match(/.{1,2}/g).map(h => parseInt(h, 16));
+        return new Uint8Array(bytes).buffer;
+    }
+
+    if (enc === 'base64') {
+        try {
+            const bin = atob(input.trim());
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) {
+                bytes[i] = bin.charCodeAt(i);
+            }
+            return bytes.buffer;
+        } catch(e) {
+            throw new Error('Ungültiges Base64-Format');
+        }
+    }
+    return new TextEncoder().encode(input).buffer;
 }
 
 
-// --- NEUER CODE AB HIER ---
+// --- Parser- und Distanzlogik ---
 
 /**
- * NEU: Formatiert 16 Bytes (aus einem DataView) in einen UUID-String.
- * @param {DataView} dataView - Das DataView, das die UUID enthält.
- * @param {number} offset - Der Start-Index der UUID (Standard 0).
- * @returns {string} Die formatierte UUID.
+ * Formatiert 16 Bytes (aus einem DataView) in einen UUID-String.
+ * @param {DataView} dataView
+ * @param {number} offset
+ * @returns {string}
  */
 function bytesToUuid(dataView, offset = 0) {
     const bytes = new Uint8Array(dataView.buffer, offset, 16);
@@ -84,41 +128,62 @@ function bytesToUuid(dataView, offset = 0) {
 }
 
 /**
- * NEU: Versucht, Apple iBeacon-Daten zu parsen.
- * Spec: 0x02 (Typ), 0x15 (Länge 21), 16B UUID, 2B Major, 2B Minor, 1B TX Power
- * @param {DataView} dataView - Die Rohdaten von Apple (ohne Company ID).
- * @returns {object|null} Ein Objekt mit den iBeacon-Daten oder null.
+ * Hilfsfunktion zur Distanzberechnung (Log-Distance Path Loss Model).
+ * @param {number} rssi - Aktuell gemessener RSSI (z.B. -70)
+ * @param {number} txPower - Kalibrierte Sendeleistung auf 1m (z.B. -59)
+ * @param {number} n - Umweltfaktor (typ. 2.0-4.0)
+ * @returns {number} Geschätzte Distanz in Metern
+ */
+export function calculateDistance(rssi, txPower, n = 3.0) {
+    if (rssi === 0 || txPower === 0) {
+        return -1.0; // Ungültige Werte
+    }
+
+    const ratio = rssi * 1.0 / txPower;
+    if (ratio < 1.0) {
+        return Math.pow(ratio, 10);
+    } else {
+        const distance = Math.pow(10, ((txPower - rssi) / (10 * n)));
+        return distance;
+    }
+}
+
+
+/**
+ * Versucht, Apple iBeacon-Daten zu parsen.
+ * @param {DataView} dataView
+ * @returns {object|null}
  */
 function parseAppleiBeacon(dataView) {
     if (dataView.byteLength >= 23 &&
-        dataView.getUint8(0) === 0x02 && // Typ: iBeacon
-        dataView.getUint8(1) === 0x15) { // Länge: 21 Bytes
+        dataView.getUint8(0) === 0x02 &&
+        dataView.getUint8(1) === 0x15) { 
         
-        const uuid = bytesToUuid(dataView, 2); // UUID (Bytes 2-17)
-        const major = dataView.getUint16(18); // Major (Bytes 18-19)
-        const minor = dataView.getUint16(20); // Minor (Bytes 20-21)
-        const txPower = dataView.getInt8(22);   // TX Power (Byte 22, signed)
+        const uuid = bytesToUuid(dataView, 2);
+        const major = dataView.getUint16(18);
+        const minor = dataView.getUint16(20);
+        const txPower = dataView.getInt8(22); // Als Zahl (z.B. -59)
         
         return {
             type: 'iBeacon (Apple)',
             uuid,
             major,
             minor,
-            txPower: `${txPower} dBm`,
+            txPower: txPower, 
         };
     }
-    return null; // Kein iBeacon
+    return null;
 }
 
 /**
- * NEU: Haupt-Parser für Manufacturer-Daten.
- * Nimmt die Map von der Web Bluetooth API.
+ * Haupt-Parser für Manufacturer-Daten.
  * @param {Map<number, DataView>} manufDataMap
- * @returns {object} Ein Objekt, das entweder geparste Daten oder Rohdaten enthält.
+ * @returns {object}
  */
 export function parseManufacturerData(manufDataMap) {
     let parsedResults = [];
     let rawHex = [];
+    let topTxPower = null; // Speichert die erste gefundene TxPower
 
     if (!manufDataMap || manufDataMap.size === 0) {
         return { type: 'raw', data: 'N/A' };
@@ -131,24 +196,25 @@ export function parseManufacturerData(manufDataMap) {
         if (companyId === 0x004C) { // Apple
             parsed = parseAppleiBeacon(dataView);
         }
-        // HINWEIS: Hier könnte man 'else if' für Google, etc. hinzufügen
         
         if (parsed) {
             parsed.companyId = companyIdHex;
             parsedResults.push(parsed);
+            if (parsed.txPower && topTxPower === null) {
+                topTxPower = parsed.txPower; // Hebt die TxPower hoch
+            }
         }
         
-        // Rohdaten immer speichern
         rawHex.push({
             companyId: companyIdHex,
             hex: bufferToHex(dataView.buffer)
         });
     }
 
-    // Wir geben die geparsten Daten ODER die Rohdaten zurück
     if (parsedResults.length > 0) {
-        return { type: 'parsed', data: parsedResults };
+        return { type: 'parsed', data: parsedResults, txPower: topTxPower };
     } else {
         return { type: 'raw', data: rawHex };
     }
 }
+ 
