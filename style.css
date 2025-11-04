@@ -307,3 +307,51 @@ select:focus, textarea:focus {
     color: var(--bg-color);
     font-weight: bold;
 }
+
+
+/* ... (Alle Stile bis Abschnitt 4 bleiben gleich) ... */
+
+/* ------------------------------------------------------------------------- */
+/* 4. Explorer, Logs & Beacon Display
+/* ------------------------------------------------------------------------- */
+
+/* ... (Explorer-Stile, .log-Stile, .tag-Stile bleiben gleich) ... */
+
+
+/* --- NEU: Sortier-Leiste --- */
+.sort-bar {
+    display: flex;
+    justify-content: flex-end; /* Button nach rechts */
+    margin-top: 1.5rem;
+    /* Negativer Margin, um näher an der Liste zu sein */
+    margin-bottom: -0.5rem; 
+    position: relative;
+    z-index: 10; /* Stellt sicher, dass er über dem Listen-Rand liegt */
+}
+        
+.sort-bar .btn {
+    padding: 0.25rem 0.5rem; /* Kleinerer Button */
+    font-size: 0.875rem;
+    border-color: var(--dim-color);
+    color: var(--dim-color);
+}
+.sort-bar .btn:hover:not([disabled]) {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background-color: var(--accent-bg);
+}
+/* --- Ende NEU --- */
+
+
+/* Beacon-Liste (Phase 2) */
+.beacon-display {
+    margin-top: 1.5rem;
+    /* ... (Rest der .beacon-display Stile bleibt unverändert) ... */
+    height: 400px; 
+    overflow-y: auto;
+    background: #000;
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+}
+
+/* ... (Rest der Datei bleibt unverändert) ... */
