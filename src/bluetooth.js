@@ -211,11 +211,11 @@ export class BluetoothManager {
             }
 
         } catch (error) {
-            log(this.logEl, 'ERROR', 'Fehler beim Stoppen des Scans: 'Z + error.message);
+            // --- HIER WAR DER FEHLER (Zeile 214) ---
+            log(this.logEl, 'ERROR', 'Fehler beim Stoppen des Scans: ' + error.message);
         } finally {
             this.scan = null;
             this.scanListener = null;
         }
     }
 }
- 
