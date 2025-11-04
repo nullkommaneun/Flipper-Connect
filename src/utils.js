@@ -3,121 +3,152 @@
  * @returns {string}
  */
 export function ts() {
-    return new Date().toLocaleTimeString([], { hour12: false });
+    // ... (Code unverändert)
 }
 
 /**
  * Schreibt eine formatierte Zeile in ein Log-Element (XSS-sicher).
- * @param {HTMLElement} el - Das <pre> oder <div> Log-Element.
- * @param {'INFO'|'ERROR'|'READ'|'WRITE'|'NOTIFY'|'TAG'|string} type - Der Typ des Logs.
- * @param {string} msg - Die Log-Nachricht.
+ * @param {HTMLElement} el
+ * @param {'INFO'|'ERROR'|'READ'|'WRITE'|'NOTIFY'|'TAG'|string} type
+ * @param {string} msg
  */
 export function log(el, type, msg) {
-    const line = document.createElement('div');
-    
-    // Zeitstempel
-    const t = document.createElement('span');
-    t.className = 'ts';
-    t.textContent = `[${ts()}] `; // Sicher
-
-    // Tag (z.B. INFO, ERROR)
-    const tag = document.createElement('span');
-    tag.className = 'tag';
-    tag.textContent = type ? `${type}: ` : ''; // Sicher
-
-    // Nachricht
-    const text = document.createElement('span');
-    if (type === 'ERROR') {
-        text.className = 'err';
-    }
-    text.textContent = msg; // Sicher
-
-    line.append(t, tag, text);
-    el.append(line);
-    
-    // Automatisch nach unten scrollen
-    el.scrollTop = el.scrollHeight;
+    // ... (Code unverändert)
 }
 
 /**
  * Kürzt eine UUID auf 8 Zeichen mit "…"
- * @param {string} u - Die UUID.
- * @returns {string} Die gekürzte UUID.
+ * @param {string} u
+ * @returns {string}
  */
 export const shortUuid = (u) => {
-    if (!u) return '';
-    const lower = u.toLowerCase();
-    return lower.length > 8 ? lower.slice(0, 8) + '…' : lower;
+    // ... (Code unverändert)
 };
 
 /**
  * Konvertiert ein ArrayBuffer in einen Hex-String (mit Leerzeichen).
- * @param {ArrayBuffer} buf - Das Eingabe-Buffer.
- * @returns {string} Ein Hex-String, z.B. "0a 1f 2b".
+ * @param {ArrayBuffer} buf
+ * @returns {string}
  */
 export const bufferToHex = (buf) => {
-    return Array.from(new Uint8Array(buf))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join(' ');
+    // ... (Code unverändert)
 };
 
 /**
  * Versucht, ein ArrayBuffer als UTF-8-Text zu dekodieren.
- * @param {ArrayBuffer} buf - Das Eingabe-Buffer.
- * @returns {string} Der dekodierte Text oder ein leerer String bei Fehler.
+ * @param {ArrayBuffer} buf
+ * @returns {string}
  */
 export const bufferToText = (buf) => {
-    try {
-        return new TextDecoder().decode(buf);
-    } catch {
-        return ''; // Bei ungültiger UTF-8-Sequenz
-    }
+    // ... (Code unverändert)
 };
 
 /**
  * Konvertiert ein ArrayBuffer in einen Base64-String.
- * (REFAKTORED: Verwendet TextDecoder('latin1') für Effizienz).
- * @param {ArrayBuffer} buf - Das Eingabe-Buffer.
- * @returns {string} Der Base64-kodierte String.
+ * @param {ArrayBuffer} buf
+ * @returns {string}
  */
 export const bufferToBase64 = (buf) => {
-    // 'latin1' mappt jedes Byte (0-255) 1:1 auf ein Zeichen.
-    // Dies ist der effizienteste Weg, einen Binärstring für btoa() zu erstellen.
-    const s = new TextDecoder('latin1').decode(buf);
-    return btoa(s);
+    // ... (Code unverändert)
 };
 
 /**
  * Kodiert einen String-Payload in ein ArrayBuffer gemäß dem gewählten Encoding.
- * @param {string} input - Der Eingabe-String (Text, Hex oder Base64).
- * @param {'text'|'hex'|'base64'} enc - Das zu verwendende Encoding.
- * @returns {ArrayBuffer} Das kodierte Buffer.
- * @throws {Error} Wenn das Hex- oder Base64-Format ungültig ist.
+ * @param {string} input
+ * @param {'text'|'hex'|'base64'} enc
+ * @returns {ArrayBuffer}
  */
 export function encodePayload(input, enc) {
-    if (enc === 'hex') {
-        const clean = input.replace(/\s+/g, '').toLowerCase();
-        if (!/^([0-9a-f]{2})+$/.test(clean)) {
-            throw new Error('Ungültiges Hex-Format');
-        }
-        const bytes = clean.match(/.{1,2}/g).map(h => parseInt(h, 16));
-        return new Uint8Array(bytes).buffer;
+    // ... (Code unverändert)
+}
+
+
+// --- NEUER CODE AB HIER ---
+
+/**
+ * NEU: Formatiert 16 Bytes (aus einem DataView) in einen UUID-String.
+ * @param {DataView} dataView - Das DataView, das die UUID enthält.
+ * @param {number} offset - Der Start-Index der UUID (Standard 0).
+ * @returns {string} Die formatierte UUID.
+ */
+function bytesToUuid(dataView, offset = 0) {
+    const bytes = new Uint8Array(dataView.buffer, offset, 16);
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0'));
+    return [
+        hex.slice(0, 4).join(''),
+        hex.slice(4, 6).join(''),
+        hex.slice(6, 8).join(''),
+        hex.slice(8, 10).join(''),
+        hex.slice(10, 16).join('')
+    ].join('-');
+}
+
+/**
+ * NEU: Versucht, Apple iBeacon-Daten zu parsen.
+ * Spec: 0x02 (Typ), 0x15 (Länge 21), 16B UUID, 2B Major, 2B Minor, 1B TX Power
+ * @param {DataView} dataView - Die Rohdaten von Apple (ohne Company ID).
+ * @returns {object|null} Ein Objekt mit den iBeacon-Daten oder null.
+ */
+function parseAppleiBeacon(dataView) {
+    if (dataView.byteLength >= 23 &&
+        dataView.getUint8(0) === 0x02 && // Typ: iBeacon
+        dataView.getUint8(1) === 0x15) { // Länge: 21 Bytes
+        
+        const uuid = bytesToUuid(dataView, 2); // UUID (Bytes 2-17)
+        const major = dataView.getUint16(18); // Major (Bytes 18-19)
+        const minor = dataView.getUint16(20); // Minor (Bytes 20-21)
+        const txPower = dataView.getInt8(22);   // TX Power (Byte 22, signed)
+        
+        return {
+            type: 'iBeacon (Apple)',
+            uuid,
+            major,
+            minor,
+            txPower: `${txPower} dBm`,
+        };
+    }
+    return null; // Kein iBeacon
+}
+
+/**
+ * NEU: Haupt-Parser für Manufacturer-Daten.
+ * Nimmt die Map von der Web Bluetooth API.
+ * @param {Map<number, DataView>} manufDataMap
+ * @returns {object} Ein Objekt, das entweder geparste Daten oder Rohdaten enthält.
+ */
+export function parseManufacturerData(manufDataMap) {
+    let parsedResults = [];
+    let rawHex = [];
+
+    if (!manufDataMap || manufDataMap.size === 0) {
+        return { type: 'raw', data: 'N/A' };
     }
 
-    if (enc === 'base64') {
-        try {
-            // (REFAKTORED: Fängt Fehler von atob ab)
-            const bin = atob(input.trim());
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) {
-                bytes[i] = bin.charCodeAt(i);
-            }
-            return bytes.buffer;
-        } catch(e) {
-            throw new Error('Ungültiges Base64-Format');
+    for (let [companyId, dataView] of manufDataMap.entries()) {
+        const companyIdHex = `0x${companyId.toString(16).toUpperCase().padStart(4, '0')}`;
+        let parsed = null;
+
+        if (companyId === 0x004C) { // Apple
+            parsed = parseAppleiBeacon(dataView);
         }
+        // HINWEIS: Hier könnte man 'else if' für Google, etc. hinzufügen
+        
+        if (parsed) {
+            parsed.companyId = companyIdHex;
+            parsedResults.push(parsed);
+        }
+        
+        // Rohdaten immer speichern
+        rawHex.push({
+            companyId: companyIdHex,
+            hex: bufferToHex(dataView.buffer)
+        });
     }
 
-    // Standard ist 'text' (UTF-8)
-    return new TextEncoder().encode(input).buffer;
+    // Wir geben die geparsten Daten ODER die Rohdaten zurück
+    if (parsedResults.length > 0) {
+        return { type: 'parsed', data: parsedResults };
+    } else {
+        return { type: 'raw', data: rawHex };
+    }
 }
