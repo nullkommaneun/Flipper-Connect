@@ -1,23 +1,20 @@
-/* * Diese Datei enthält nur anwendungsspezifische Stile.
+/*
+ * Diese Datei enthält nur anwendungsspezifische Stile.
  * Das Basis-Design (inkl. Dark Mode) wird von Pico.css (via index.html) gesteuert.
  */
 
-/* Stile für das Terminal-Log-Fenster */
+/* ------------------------------------------------------------------------- */
+/* 1. Terminal & Log Stile
+/* ------------------------------------------------------------------------- */
+
 .log {
     height: 240px;
     overflow: auto;
-    
-    /* Pico's Dark-Mode <pre> ist #11191f. 
-       Dieser Hintergrund ist etwas blauer. */
+    /* Pico's Dark-Mode <pre> ist #11191f. Dieser Hintergrund ist etwas blauer. */
     background: #0b1020;
     color: #d1e7ff;
-    
-    /* Pico nutzt var(--border-radius), was .25rem ist. 
-       Wir überschreiben es hier für einen runderen Look. */
     border-radius: .5rem;
     padding: .75rem;
-    
-    /* Hilft beim Zeilenumbruch von langen Log-Einträgen */
     white-space: pre-wrap;
     word-break: break-all;
 }
@@ -27,20 +24,9 @@
 .tag { color: #a7f3d0; } /* Tag (z.B. READ, WRITE) */
 .err { color: #fecaca; } /* Error */
 
-/* * Optional: Überschreibt Picos :disabled-Stil.
- * Picos Standard ist 'opacity: 0.5' und 'cursor: not-allowed'.
- * Dein Stil ist sehr ähnlich und kann beibehalten werden, wenn du ihn bevorzugst.
- */
-button[disabled] { 
-    opacity: .6; 
-    cursor: not-allowed; 
-}
-
- 
-/* ... (deine vorhandenen .log, .ts, .tag, .err Stile) ... */
-
-/* NEU: Stile für den Service & Characteristic Explorer */
-/* Ersetzt die alten Inline-JavaScript-Stile */
+/* ------------------------------------------------------------------------- */
+/* 2. Explorer Layout Stile (Diese fehlen dir wahrscheinlich)
+/* ------------------------------------------------------------------------- */
 
 .explorer-row {
     display: flex;
@@ -68,12 +54,12 @@ details[open] .explorer-row:last-child {
     padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
 }
 
+/* ------------------------------------------------------------------------- */
+/* 3. Diagnose-Tool Stile
+/* ------------------------------------------------------------------------- */
 
-/* ... (deine vorhandenen Stile) ... */
-
-/* NEU: Stile für das Failsafe-Diagnose-Log */
 .diag-log {
-    display: none; /* Wird per JS eingeblendet */
+    display: none; /* Wird per JS eingeblendet, wenn Fehler auftreten */
     color: #f0f0f0;
     background-color: #2b1a1a; /* Dunkelrot */
     border: 1px solid #fecaca;
@@ -86,7 +72,6 @@ details[open] .explorer-row:last-child {
     font-size: 0.875rem;
 }
 
-/* NEU: Ein genereller Fehler-Badge-Stil */
 .badge.error {
     background-color: #881b1b; /* Dunkles Rot */
     color: #f0f0f0;
