@@ -1,10 +1,45 @@
 import { log } from './utils.js';
 const UUID128 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-// Diese Funktion ist für den "Explorer-Modus" (Phase 1) und bleibt unverändert
+/**
+ * Lädt Service-UUIDs aus einer JSON-Datei als optionalServices für den connect().
+ * Greift bei einem Fehler auf eine harte Fallback-Liste zurück.
+ * (REFAKTORED für Lesbarkeit)
+ */
 async function loadServiceUUIDs(logEl) {
-    const FALLBACK = ['0000180f-0000-1000-8000-00805f9b34fb', '0000180a-0000-1000-8000-00805f9b34fb', '19ed82ae-ed21-4c9d-4145-228e62fe0000'];
-    try { const res = await fetch('./flipper_services.json', { cache: 'no-store' }); if (!res.ok) return FALLBACK; const j = await res.json(); let uuids = (j?.flipper_services || []).map(s => String(s.uuid || '').trim().toLowerCase()); uuids = [...new Set(uuids)]; return uuids.filter(u => UUID128.test(u)) || FALLBACK; } catch (e) { log(logEl, 'ERROR', 'UUID Load fail:' + e.message); return FALLBACK; }
+    // Fallback-Liste, falls JSON-Fetch fehlschlägt oder ungültig ist
+    const FALLBACK = [
+        '0000180f-0000-1000-8000-00805f9b34fb', // Battery Service
+        '0000180a-0000-1000-8000-00805f9b34fb', // Device Information
+        '19ed82ae-ed21-4c9d-4145-228e62fe0000'  // (Beispiel Flipper-Service)
+    ];
+    
+    try {
+        const response = await fetch('./flipper_services.json', { cache: 'no-store' });
+        
+        if (!response.ok) {
+            log(logEl, 'INFO', 'flipper_services.json nicht gefunden, nutze Fallback.');
+            return FALLBACK;
+        }
+
+        const data = await response.json();
+        
+        // 1. Hole UUIDs, stelle sicher, dass es ein Array ist
+        const uuids = (data?.flipper_services || [])
+            // 2. Extrahiere die UUID-Strings, trimme und kleinschreibe
+            .map(service => String(service?.uuid || '').trim().toLowerCase())
+            // 3. Validiere das UUID-Format (wichtige Bereinigung)
+            .filter(uuid => UUID128.test(uuid))
+            // 4. Entferne Duplikate
+            .filter((uuid, index, self) => self.indexOf(uuid) === index); // (Alternative zu new Set)
+
+        // 5. Stelle sicher, dass wir nicht mit einem leeren Array enden
+        return uuids.length > 0 ? uuids : FALLBACK;
+
+    } catch (e) {
+        log(logEl, 'ERROR', 'Fehler beim Laden der UUIDs: ' + e.message);
+        return FALLBACK; // Bei jedem Fehler auf Fallback zurückgreifen
+    }
 }
 
 export class BluetoothManager {
@@ -27,8 +62,7 @@ export class BluetoothManager {
         return hasDevice && hasScan;
     }
 
-    // --- DEINE ORIGINAL-FUNKTIONEN (Unverändert) ---
-    // Diese sind für Phase 1 (Flipper verbinden)
+    // --- PHASE 1 FUNKTIONEN (FLIPPER EXPLORER) ---
     
     async connect() {
         const optionalServices = await loadServiceUUIDs(this.logEl);
@@ -40,7 +74,15 @@ export class BluetoothManager {
     }
 
     async disconnect() {
-        try { if (this.device?.gatt?.connected) this.device.gatt.disconnect(); } finally { this.server = null; this.device = null; this.chars.clear(); }
+        try { 
+            if (this.device?.gatt?.connected) {
+                this.device.gatt.disconnect(); 
+            }
+        } finally { 
+            this.server = null; 
+            this.device = null; 
+            this.chars.clear(); 
+        }
     }
 
     async discover() {
@@ -52,7 +94,14 @@ export class BluetoothManager {
             const chars = await svc.getCharacteristics();
             for (const c of chars) {
                 this.chars.set(c.uuid, c);
-                entry.characteristics.push({ uuid: c.uuid, props: { read: c.properties.read, write: c.properties.write || c.properties.writeWithoutResponse, notify: c.properties.notify || c.properties.indicate } });
+                entry.characteristics.push({ 
+                    uuid: c.uuid, 
+                    props: { 
+                        read: c.properties.read, 
+                        write: c.properties.write || c.properties.writeWithoutResponse, 
+                        notify: c.properties.notify || c.properties.indicate 
+                    } 
+                });
             }
             out.push(entry);
         }
@@ -73,8 +122,14 @@ export class BluetoothManager {
 
     async write(uuid, buf) {
         const c = this.getCharacteristic(uuid);
-        if (c.properties.write) { await c.writeValue(buf); return; }
-        if (c.properties.writeWithoutResponse) { await c.writeValueWithoutResponse(buf); return; }
+        if (c.properties.write) { 
+            await c.writeValue(buf); 
+            return; 
+        }
+        if (c.properties.writeWithoutResponse) { 
+            await c.writeValueWithoutResponse(buf); 
+            return; 
+        }
         throw new Error('Characteristic nicht schreibbar');
     }
 
@@ -83,7 +138,16 @@ export class BluetoothManager {
         await c.startNotifications();
         const handler = (e) => cb(e.target.value.buffer);
         c.addEventListener('characteristicvaluechanged', handler);
-        return () => { try { c.removeEventListener('characteristicvaluechanged', handler); } catch { } try { c.stopNotifications(); } catch { } };
+        
+        // Rückgabe einer "unsubscribe"-Funktion
+        return () => { 
+            try { 
+                c.removeEventListener('characteristicvaluechanged', handler); 
+            } catch { } 
+            try { 
+                c.stopNotifications(); 
+            } catch { } 
+        };
     }
     
     //
@@ -147,10 +211,11 @@ export class BluetoothManager {
             }
 
         } catch (error) {
-            log(this.logEl, 'ERROR', 'Fehler beim Stoppen des Scans: ' + error.message);
+            log(this.logEl, 'ERROR', 'Fehler beim Stoppen des Scans: 'Z + error.message);
         } finally {
             this.scan = null;
             this.scanListener = null;
         }
     }
 }
+ 
