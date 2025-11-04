@@ -23,7 +23,56 @@
     
   </header>
   <main class="container">
-    </main>
+    <section>
+      <h2>Phase 1: Flipper Explorer</h2>
+      <div class="grid grid-connect">
+        
+        <button id="btnConnect" class="contrast">Mit Flipper verbinden</button>
+        
+        <button id="btnDisconnect" class="secondary" disabled>Trennen</button>
+        <span id="connState" class="state">Getrennt</span>
+      </div>
+    </section>
+    
+    <section>
+      <h2>Phase 2: Datenjagd (Beacon Sniffer)</h2>
+      <div class="grid grid-connect">
+        <button id="btnStartScan" class="contrast">Datenjagd starten</button>
+        <button id="btnStopScan" class="secondary" disabled>Scan stoppen</button>
+        <button id="btnDownloadLog" class="secondary" disabled>JSON-Log herunterladen</button>
+      </div>
+    </section>
+    
+    <section>
+      <h2>Service & Characteristic Explorer</h2>
+      <div id="explorer" class="accordion"></div>
+    </section>
+    
+    <section>
+      <h2>Terminal</h2>
+      <pre id="terminalLog" class="log" tabindex="0"></pre>
+      
+      <div id="flipperTerminalActions">
+        <div class="grid grid-actions">
+          <select id="charSelect" aria-label="Ziel-Characteristic auswählen"></select>
+          <select id="encoding" aria-label="Sende-Encoding auswählen">
+            <option value="text">Text</option>
+            <option value="hex">Hex</option>
+            <option value="base64">Base64</option>
+          </select>
+        </div>
+        
+        <textarea 
+          id="terminalInput" 
+          rows="3" 
+          placeholder="Befehl an Flipper senden…"
+          aria-label="Terminal-Eingabe"
+        ></textarea>
+        
+        <button id="btnSend" class="contrast" disabled>Senden</button>
+      </div>
+    </section>
+  </main>
   <footer class="container">
     <small>Web Bluetooth • GitHub Pages</small>
   </footer>
@@ -41,11 +90,7 @@
       const diagLog = document.getElementById('diagLog');
       const preflightEl = document.getElementById('preflight');
       const startTime = Date.now();
-      
-      // NEU: Der "Heartbeat"-Flag, den ui.js setzen MUSS.
       window.__app_heartbeat = false;
-
-      // 1. Ein globaler Failsafe-Logger
       window.__diag = (msg, level = 'ERROR') => {
         if (diagLog) {
           diagLog.style.display = 'block';
@@ -53,13 +98,11 @@
           const time = ((Date.now() - startTime) / 1000).toFixed(2);
           line.textContent = `[${time}s] ${level}: ${msg}`;
           if (level === 'ERROR') {
-            line.style.color = '#fecaca'; // .err Stil
+            line.style.color = '#fecaca';
           }
           diagLog.appendChild(line);
         }
       };
-
-      // 2. Modul-Ladefehler-Handler (fängt 404s)
       const moduleScript = document.getElementById('appModule');
       if (moduleScript) {
         moduleScript.onerror = (e) => {
@@ -72,25 +115,18 @@
       } else {
         window.__diag('KRITISCH: Konnte das App-Modul-Skript-Tag (id="appModule") nicht finden.');
       }
-      
-      // 3. NEU: Globaler Fehler-Catcher (fängt Syntaxfehler etc.)
       window.addEventListener('error', (event) => {
         window.__diag(`GLOBALER FEHLER: ${event.message}`);
         if (event.filename) {
           window.__diag(`  Datei: ${event.filename}:${event.lineno}`);
         }
       });
-
-      // 4. NEU: Globaler Promise-Rejection-Catcher (WICHTIG für Modul-Imports!)
       window.addEventListener('unhandledrejection', (event) => {
         window.__diag(`UNHANDLED REJECTION: Möglicher Import-Fehler.`);
         if (event.reason) {
-          // Zeigt den Fehler, z.B. "Failed to fetch dynamically imported module"
           window.__diag(`  Grund: ${event.reason.message || event.reason}`);
         }
       });
-
-      // 5. Modifizierter Watchdog (prüft jetzt den Heartbeat)
       setTimeout(() => {
         if (window.__app_heartbeat === false) {
           window.__diag('WATCHDOG: Heartbeat-Flag (window.__app_heartbeat) wurde nie gesetzt.');
@@ -100,13 +136,12 @@
           preflightEl.className = 'badge error';
         } 
         else if (preflightEl.textContent === 'Preflight läuft…') {
-          // Heartbeat war da, aber DOMContentLoaded ist getimed out
           window.__diag('WATCHDOG: App-Initialisierung (DOMContentLoaded in ui.js) wurde nie abgeschlossen.');
           window.__diag('STATUS: Das UI-Skript ist gecrasht, *nachdem* es gestartet wurde, aber *bevor* der Preflight-Check lief.');
           preflightEl.textContent = 'FEHLER: App-Init Timeout';
           preflightEl.className = 'badge error';
         }
-      }, 2500); // 2.5 Sekunden warten
+      }, 2500);
     })();
   </script>
 </body>
