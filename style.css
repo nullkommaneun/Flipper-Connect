@@ -67,3 +67,28 @@ details[open] .explorer-row:last-child {
     --pico-font-size: 0.875rem; /* 14px */
     padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
 }
+
+
+/* ... (deine vorhandenen Stile) ... */
+
+/* NEU: Stile für das Failsafe-Diagnose-Log */
+.diag-log {
+    display: none; /* Wird per JS eingeblendet */
+    color: #f0f0f0;
+    background-color: #2b1a1a; /* Dunkelrot */
+    border: 1px solid #fecaca;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+}
+
+/* NEU: Ein genereller Fehler-Badge-Stil */
+.badge.error {
+    background-color: #881b1b; /* Dunkles Rot */
+    color: #f0f0f0;
+    border-color: #fecaca;
+}
