@@ -41,9 +41,11 @@
       const diagLog = document.getElementById('diagLog');
       const preflightEl = document.getElementById('preflight');
       const startTime = Date.now();
+      
+      // NEU: Der "Heartbeat"-Flag, den ui.js setzen MUSS.
+      window.__app_heartbeat = false;
 
       // 1. Ein globaler Failsafe-Logger
-      // ui.js kann diesen mitbenutzen, wenn er existiert
       window.__diag = (msg, level = 'ERROR') => {
         if (diagLog) {
           diagLog.style.display = 'block';
@@ -57,26 +59,50 @@
         }
       };
 
-      // 2. Modul-Ladefehler-Handler (fängt 404s, MIME-Typ-Fehler etc. ab)
+      // 2. Modul-Ladefehler-Handler (fängt 404s)
       const moduleScript = document.getElementById('appModule');
       if (moduleScript) {
         moduleScript.onerror = (e) => {
           window.__diag(`KRITISCH: Das Hauptmodul (ui.js) konnte nicht geladen werden.`);
           window.__diag(`PFAD: ${moduleScript.src}`);
-          window.__diag(`FEHLER: Prüfe die Browser-Konsole (F12 -> Konsole) auf 404-Fehler oder CORS-Probleme.`);
-          preflightEl.textContent = 'FEHLER: App-Modul (ui.js) nicht geladen';
+          window.__diag(`FEHLER: (onerror) Prüfe Pfad/Netzwerk. Siehe F12-Konsole für Details (z.B. MIME-Typ).`);
+          preflightEl.textContent = 'FEHLER: Modul-Ladefehler';
           preflightEl.className = 'badge error';
         };
       } else {
         window.__diag('KRITISCH: Konnte das App-Modul-Skript-Tag (id="appModule") nicht finden.');
       }
       
-      // 3. Ein "Watchdog", der prüft, ob die App 2.5s nach dem Laden
-      // den Preflight-Status immer noch nicht geändert hat.
+      // 3. NEU: Globaler Fehler-Catcher (fängt Syntaxfehler etc.)
+      window.addEventListener('error', (event) => {
+        window.__diag(`GLOBALER FEHLER: ${event.message}`);
+        if (event.filename) {
+          window.__diag(`  Datei: ${event.filename}:${event.lineno}`);
+        }
+      });
+
+      // 4. NEU: Globaler Promise-Rejection-Catcher (WICHTIG für Modul-Imports!)
+      window.addEventListener('unhandledrejection', (event) => {
+        window.__diag(`UNHANDLED REJECTION: Möglicher Import-Fehler.`);
+        if (event.reason) {
+          // Zeigt den Fehler, z.B. "Failed to fetch dynamically imported module"
+          window.__diag(`  Grund: ${event.reason.message || event.reason}`);
+        }
+      });
+
+      // 5. Modifizierter Watchdog (prüft jetzt den Heartbeat)
       setTimeout(() => {
-        if (preflightEl && preflightEl.textContent === 'Preflight läuft…') {
+        if (window.__app_heartbeat === false) {
+          window.__diag('WATCHDOG: Heartbeat-Flag (window.__app_heartbeat) wurde nie gesetzt.');
+          window.__diag('STATUS: Das ui.js-Modul wurde geladen, aber *nie ausgeführt*.');
+          window.__diag('GRUND: Höchstwahrscheinlich ein MIME-Typ-Fehler oder ein Import-Fehler.');
+          preflightEl.textContent = 'FEHLER: App-Modul-Startfehler';
+          preflightEl.className = 'badge error';
+        } 
+        else if (preflightEl.textContent === 'Preflight läuft…') {
+          // Heartbeat war da, aber DOMContentLoaded ist getimed out
           window.__diag('WATCHDOG: App-Initialisierung (DOMContentLoaded in ui.js) wurde nie abgeschlossen.');
-          window.__diag('STATUS: Das UI-Skript ist entweder gecrasht oder wurde nie ausgeführt.');
+          window.__diag('STATUS: Das UI-Skript ist gecrasht, *nachdem* es gestartet wurde, aber *bevor* der Preflight-Check lief.');
           preflightEl.textContent = 'FEHLER: App-Init Timeout';
           preflightEl.className = 'badge error';
         }
