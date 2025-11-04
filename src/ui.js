@@ -1,38 +1,32 @@
-// Heartbeat (bleibt ganz oben)
+// Heartbeat
 window.__app_heartbeat = true;
 
 if (window.__diag) {
   window.__diag('INIT: ui.js Modul-Ausführung gestartet.', 'INFO');
 }
 
-// Imports (bleiben oben)
+// Imports
 import {BluetoothManager} from './bluetooth.js';
 import {log, shortUuid, bufferToHex, bufferToText, bufferToBase64, encodePayload} from './utils.js';
 
 // 1. Element-Selektoren
 const $=s=>document.querySelector(s);
-
-// NEU: Eine "sichere" Query-Funktion, die Fehler wirft
 function safeQuery(selector, context = document) {
     const element = context.querySelector(selector);
     if (!element) {
-        // Dieser Fehler wird sofort vom try...catch in DOMContentLoaded gefangen
         throw new Error(`Kritisches DOM-Element nicht gefunden: ${selector}`);
     }
     return element;
 }
+let el = {}; // Bleibt leer bis DOM geladen
 
-// Deklariere 'el' als leer.
-let el = {};
-
-// 2. Globale Zustandsvariablen (bleiben)
+// 2. Globale Zustandsvariablen
 let mgr;
 let notifyUnsub=null;
-let recordedData = [];
+let recordedData = []; // Für den JSON-Download
+let discoveredDevices = new Map(); // NEU: Für die Live-UI
 
 // 3. UI-Hilfsfunktionen
-// (Alle Funktionen wie setPreflight, setConnectedUI, renderExplorer, handleBeaconData
-//  bleiben hier unverändert.)
 
 function setPreflight(){
     if(BluetoothManager.preflight()){
@@ -49,6 +43,8 @@ function setConnectedUI(isConnected){
     el.state.textContent=isConnected?'Verbunden':'Getrennt';
     el.send.disabled=!isConnected;
 }
+
+// (Explorer-Render-Funktion bleibt unverändert)
 function renderExplorer(tree){
   el.explorer.innerHTML='';
   el.charSelect.innerHTML='';
@@ -97,31 +93,78 @@ function renderExplorer(tree){
     el.explorer.append(d);
   }
 }
+
+
+// --- KOMPLETT NEUE handleBeaconData FUNKTION ---
+/**
+ * Verarbeitet empfangene Beacon-Daten.
+ * Aktualisiert die "Beacon-Liste" UI und speichert Daten für den JSON-Download.
+ * @param {BluetoothAdvertisingEvent} event
+ */
 function handleBeaconData(event) {
     const deviceName = event.device.name || 'Unbekanntes Gerät';
+    const deviceId = event.device.id;
     const rssi = event.rssi;
     const manufData = event.manufacturerData;
-    log(el.log, 'TAG', `[${deviceName}] RSSI: ${rssi} dBm`);
+    
+    // 1. Daten für JSON-Download speichern (wie bisher)
     const manufDataArray = [];
+    let manufDataHex = ''; // Brauchen wir für die UI
+    
     if (manufData && manufData.size > 0) {
         for (let [companyId, dataView] of manufData.entries()) {
             const hexData = bufferToHex(dataView.buffer);
             const companyIdHex = `0x${companyId.toString(16).toUpperCase()}`;
-            log(el.log, 'INFO', `  Manuf. ID: ${companyIdHex}`);
-            log(el.log, 'INFO', `  Adv Data: ${hexData}`);
-            manufDataArray.push({
-                companyId: companyIdHex,
-                advData: hexData
-            });
+            
+            // Für JSON
+            manufDataArray.push({ companyId: companyIdHex, advData: hexData });
+            
+            // Für UI (wir fügen alles zu einem lesbaren String zusammen)
+            manufDataHex += `ID: ${companyIdHex}\nData: ${hexData}\n`;
         }
     }
     recordedData.push({
         timestamp: new Date().toISOString(),
+        id: deviceId,
         name: deviceName,
         rssi: rssi,
         manufacturerData: manufDataArray
     });
+
+    // 2. Live-UI aktualisieren
+    if (!discoveredDevices.has(deviceId)) {
+        // --- GERÄT IST NEU: Karteikarte erstellen ---
+        const card = document.createElement('div');
+        card.className = 'beacon-card';
+        card.id = `device-${deviceId}`; // Eindeutige ID für die Karte
+        
+        // (Wir verwenden innerHTML für eine einfache Vorlage. Da die Daten
+        // (deviceName, rssi, manufDataHex) von der Bluetooth API kommen
+        // und nicht vom Benutzer, ist das XSS-Risiko hier gering.)
+        card.innerHTML = `
+            <span class="rssi" data-field="rssi">${rssi}</span>
+            <strong data-field="name">${deviceName}</strong>
+            <span class="data-label" data-field="id">${deviceId}</span>
+            <span class="data-label">Manufacturer Data:</span>
+            <pre data-field="manufData">${manufDataHex || 'N/A'}</pre>
+        `;
+        
+        el.beaconDisplay.appendChild(card);
+        discoveredDevices.set(deviceId, card); // Karte in der Map speichern
+    
+    } else {
+        // --- GERÄT IST BEKANNT: Karteikarte aktualisieren ---
+        const card = discoveredDevices.get(deviceId);
+        
+        // (Wir verwenden gezielte Abfragen, um nur die Werte zu aktualisieren)
+        card.querySelector('[data-field="rssi"]').textContent = rssi;
+        card.querySelector('[data-field="name"]').textContent = deviceName;
+        
+        const manufDataEl = card.querySelector('[data-field="manufData"]');
+        manufDataEl.textContent = manufDataHex || 'N/A';
+    }
 }
+// --- ENDE NEUE FUNKTION ---
 
 
 // 4. Haupt-Initialisierung
@@ -129,10 +172,10 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     if (window.__diag) window.__diag('INIT: DOMContentLoaded Event gefeuert.', 'INFO');
 
-    // --- NEU: Wir verwenden 'safeQuery', um fehlende IDs sofort zu finden ---
+    // DOM-Elemente sicher zuweisen
     el = {
         preflight: safeQuery('#preflight'),
-        connect: safeQuery('#btnConnect'), // <-- Wenn #btnConnect fehlt, wirft dies einen Fehler
+        connect: safeQuery('#btnConnect'),
         disconnect: safeQuery('#btnDisconnect'),
         state: safeQuery('#connState'),
         explorer: safeQuery('#explorer'),
@@ -143,11 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
         send: safeQuery('#btnSend'),
         startScan: safeQuery('#btnStartScan'),
         stopScan: safeQuery('#btnStopScan'),
-        download: safeQuery('#btnDownloadLog') 
+        download: safeQuery('#btnDownloadLog'),
+        beaconDisplay: safeQuery('#beaconDisplay') // NEU
     };
     if (window.__diag) window.__diag('INIT: DOM-Elemente erfolgreich geprüft und zugewiesen.', 'INFO');
     
-    // Jetzt den Rest der Initialisierung sicher ausführen
     setPreflight();
     
     mgr = new BluetoothManager({
@@ -159,33 +202,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- Event Listeners ---
+    
+    // Phase 1 (unverändert)
     el.connect.addEventListener('click',async()=>{try{log(el.log,'INFO','Geräteauswahl…');const ok=await mgr.connect();if(ok){setConnectedUI(true);log(el.log,'CONNECTED',mgr.device?.name||'Unbekannt');const tree=await mgr.discover();renderExplorer(tree);}}catch(e){log(el.log,'ERROR',e.message);}});
     el.disconnect.addEventListener('click',async()=>{await mgr.disconnect();setConnectedUI(false);log(el.log,'DISCONNECTED','Trennen ok');});
     el.send.addEventListener('click',async()=>{try{const uuid=el.charSelect.value;if(!uuid)throw new Error('Keine Characteristic gewählt');const payload=el.input.value;const enc=el.encoding.value;const buf=encodePayload(payload,enc);await mgr.write(uuid,buf);log(el.log,'WRITE',`${uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
+
+    // Phase 2 (AKTUALISIERT)
     el.startScan.addEventListener('click', async () => {
       try {
+          // Listen und Datenspeicher leeren
           recordedData = []; 
+          discoveredDevices.clear();
+          el.beaconDisplay.innerHTML = ''; // UI leeren
+          
           log(el.log, 'INFO', 'Starte passiven Scan (Datenjagd)...');
-          log(el.log, 'INFO', 'Datenspeicher (recordedData) wurde geleert.');
-          await mgr.startScan(handleBeaconData);
+          log(el.log, 'INFO', 'Beacon-Liste wird aufgebaut...');
+          
+          await mgr.startScan(handleBeaconData); // Unsere NEUE Handler-Funktion
+          
           el.startScan.disabled = true;
           el.stopScan.disabled = false;
           el.download.disabled = true; 
           el.connect.disabled = true;
           el.disconnect.disabled = true;
           el.send.disabled = true;
+          
       } catch (e) {
-          log(el.log, 'ERROR', e.message);
+          log(el.log, 'ERROR', e.message); // Fehler im Aktions-Log
       }
     });
+
     el.stopScan.addEventListener('click', () => {
       mgr.stopScan();
+      
       el.startScan.disabled = false;
       el.stopScan.disabled = true;
       el.download.disabled = false; 
+      
       setConnectedUI(false); 
-      log(el.log, 'INFO', 'Scan gestoppt. Download ist bereit.');
+      log(el.log, 'INFO', 'Scan gestoppt. Download ist bereit.'); // Info im Aktions-Log
     });
+    
     el.download.addEventListener('click', () => {
       if (recordedData.length === 0) {
           log(el.log, 'ERROR', 'Keine Daten zum Herunterladen vorhanden.');
@@ -209,9 +267,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
   } catch (e) {
     if (window.__diag) {
-      // Dieser Block fängt jetzt den "Kritisches DOM-Element nicht gefunden"-Fehler ab
       window.__diag('KRITISCH: Fehler während der App-Initialisierung (DOMContentLoaded).');
-      window.__diag(`FEHLER: ${e.message}`); // <-- HIER STEHT DANN WELCHES ELEMENT FEHLT
+      window.__diag(`FEHLER: ${e.message}`);
       window.__diag(`STACK: ${e.stack}`);
     } else {
       console.error('KRITISCHER FEHLER (DOMContentLoaded):', e);
@@ -225,4 +282,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
- 
