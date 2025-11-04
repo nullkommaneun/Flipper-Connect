@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flipper Web Bluetooth Workbench</title>
+  
+  <link 
+    rel="stylesheet" 
+    href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.min.css" 
+    integrity="sha384-VO1Qo9J5c/vUi1Rt9b2P9iAYwR09t5RfP22/VEerhHYPXSDppfHfchvjBdaMRLNU" 
+    crossorigin="anonymous"
+  >
+  
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="container">
+    <h1>Flipper Web Bluetooth Workbench</h1>
+    <p id="preflight" class="badge">Preflight läuft…</p>
+  </header>
+  <main class="container">
+    <section>
+      <h2>Phase 1: Flipper Explorer</h2>
+      <div class="grid grid-connect">
+        <button id="btnConnect" class="contrast">Mit Flipper verbinden</button>
+        <button id="btnDisconnect" class="secondary" disabled>Trennen</button>
+        <span id="connState" class="state">Getrennt</span>
+      </div>
+    </section>
+    
+    <section>
+      <h2>Phase 2: Datenjagd (Beacon Sniffer)</h2>
+      <div class="grid grid-connect">
+        <button id="btnStartScan" class="contrast">Datenjagd starten</button>
+        <button id="btnStopScan" class="secondary" disabled>Scan stoppen</button>
+        <button id="btnDownloadLog" class="secondary" disabled>JSON-Log herunterladen</button>
+      </div>
+    </section>
+    
+    <section>
+      <h2>Service & Characteristic Explorer</h2>
+      <div id="explorer" class="accordion"></div>
+    </section>
+    
+    <section>
+      <h2>Terminal</h2>
+      <pre id="terminalLog" class="log" tabindex="0"></pre>
+      
+      <div id="flipperTerminalActions">
+        <div class="grid grid-actions">
+          
+          <select id="charSelect" aria-label="Ziel-Characteristic auswählen"></select>
+          
+          <select id="encoding" aria-label="Sende-Encoding auswählen">
+            <option value="text">Text</option>
+            <option value="hex">Hex</option>
+            <option value="base64">Base64</option>
+          </select>
+        </div>
+        
+        <textarea 
+          id="terminalInput" 
+          rows="3" 
+          placeholder="Befehl an Flipper senden…"
+          aria-label="Terminal-Eingabe"
+        ></textarea>
+        
+        <button id="btnSend" class="contrast" disabled>Senden</button>
+      </div>
+    </section>
+  </main>
+  <footer class="container">
+    <small>Web Bluetooth • GitHub Pages</small>
+  </footer>
+  
+  <script 
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js" 
+    integrity="sha512-4NhQxWHBLR6lCvMtnpeK2WTLBwP/9tHIXRweT9AKsIfwiBUiGNGNUKYpqLqI9K23/NG/R3iP/CDlQKNtTwSJmA==" 
+    crossorigin="anonymous"
+  ></script>
+  
+  <script type="module" src="./src/ui.js"></script>
+</body>
+</html>
