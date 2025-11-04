@@ -140,7 +140,7 @@ select:focus, textarea:focus {
 }
 
 /* ------------------------------------------------------------------------- */
-/* 4. Explorer & Log (Unsere alten Stile, angepasst)
+/* 4. Explorer, Logs & Beacon Display
 /* ------------------------------------------------------------------------- */
 
 /* Explorer (Ersatz für .accordion) */
@@ -176,7 +176,7 @@ select:focus, textarea:focus {
     padding: 0.25rem 0.5rem;
 }
 
-/* Terminal Log */
+/* Terminal Log (Aktions-Log) */
 .log {
     height: 300px;
     overflow: auto;
@@ -193,6 +193,61 @@ select:focus, textarea:focus {
 .ts { color: var(--dim-color); }
 .tag { color: var(--accent-color); font-weight: bold; }
 .err { color: var(--error-color); }
+
+
+/* --- NEU: Beacon-Liste (Phase 2) --- */
+.beacon-display {
+    margin-top: 1.5rem;
+    display: grid;
+    /* Erstellt automatisch Spalten, die min. 300px breit sind */
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.beacon-card {
+    background: #1a1a1a;
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    position: relative; /* Für den RSSI-Badge */
+}
+
+.beacon-card strong {
+    color: var(--accent-color);
+    font-size: 1.1rem;
+    display: block;
+    /* Platz für den RSSI-Wert lassen */
+    padding-right: 60px;
+    word-break: break-all;
+}
+
+.beacon-card .rssi {
+    font-size: 1.5rem;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: var(--fg-color);
+}
+
+.beacon-card .data-label {
+    font-size: 0.8rem;
+    color: var(--dim-color);
+    margin-top: 0.5rem;
+    display: block;
+}
+
+/* Kleines <pre>-Feld für die Rohdaten */
+.beacon-card pre {
+    background: #000;
+    padding: 0.5rem;
+    margin-top: 0.25rem;
+    border: 1px solid var(--border-color);
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 0.8rem;
+    color: var(--dim-color);
+}
+/* --- Ende NEU --- */
+
 
 /* ------------------------------------------------------------------------- */
 /* 5. Diagnose-Tool
@@ -222,3 +277,4 @@ select:focus, textarea:focus {
     color: var(--bg-color);
     font-weight: bold;
 }
+ 
