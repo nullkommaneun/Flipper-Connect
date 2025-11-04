@@ -107,7 +107,7 @@ export function encodePayload(input, enc) {
 }
 
 
-// --- Parser- und Distanzlogik ---
+// --- Parser- und Distanzlogik (DIESE FEHLTE) ---
 
 /**
  * Formatiert 16 Bytes (aus einem DataView) in einen UUID-String.
@@ -183,7 +183,7 @@ function parseAppleiBeacon(dataView) {
 export function parseManufacturerData(manufDataMap) {
     let parsedResults = [];
     let rawHex = [];
-    let topTxPower = null; // Speichert die erste gefundene TxPower
+    let topTxPower = null; 
 
     if (!manufDataMap || manufDataMap.size === 0) {
         return { type: 'raw', data: 'N/A' };
@@ -201,7 +201,7 @@ export function parseManufacturerData(manufDataMap) {
             parsed.companyId = companyIdHex;
             parsedResults.push(parsed);
             if (parsed.txPower && topTxPower === null) {
-                topTxPower = parsed.txPower; // Hebt die TxPower hoch
+                topTxPower = parsed.txPower;
             }
         }
         
@@ -217,4 +217,3 @@ export function parseManufacturerData(manufDataMap) {
         return { type: 'raw', data: rawHex };
     }
 }
- 
