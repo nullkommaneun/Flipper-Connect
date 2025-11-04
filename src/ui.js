@@ -40,6 +40,7 @@ let chartConfigTemplate;
 
 
 // 3. UI-Hilfsfunktionen
+// ... (setPreflight, setConnectedUI, renderExplorer, renderParsedData bleiben unverändert) ...
 function setPreflight(){
     if(BluetoothManager.preflight()){
         el.preflight.textContent='Web Bluetooth: OK';
@@ -55,7 +56,6 @@ function setConnectedUI(isConnected){
     el.state.textContent=isConnected?'Verbunden':'Getrennt';
     el.send.disabled=!isConnected;
 }
-
 function renderExplorer(tree){
   el.explorer.innerHTML='';
   el.charSelect.innerHTML='';
@@ -104,7 +104,6 @@ function renderExplorer(tree){
     el.explorer.append(d);
   }
 }
-
 function renderParsedData(parsedData) {
     if (parsedData.type === 'parsed') {
         let html = '<dl class="parsed-data">';
@@ -131,6 +130,7 @@ function renderParsedData(parsedData) {
     }
 }
 
+
 /**
  * Verarbeitet empfangene Beacon-Daten.
  * @param {BluetoothAdvertisingEvent} event
@@ -156,7 +156,6 @@ function handleBeaconData(event) {
         // --- GERÄT IST NEU: Karteikarte UND Chart erstellen ---
         const card = document.createElement('div');
         card.className = 'beacon-card';
-        
         const safeDeviceId = deviceId.replace(/[^a-zA-Z0-9_-]/g, '');
         card.id = `device-${safeDeviceId}`; 
         
@@ -164,11 +163,9 @@ function handleBeaconData(event) {
             <span class="rssi" data-field="rssi">${rssi}</span>
             <strong data-field="name">${deviceName}</strong>
             <span class="data-label" data-field="id">${deviceId}</span>
-            
             <div class="chart-container">
                 <canvas class="beacon-chart"></canvas>
             </div>
-            
             <span class="data-label">Manufacturer Data:</span>
             <div data-field="manufData">
                 ${dataHtml}
@@ -192,7 +189,8 @@ function handleBeaconData(event) {
         const config = JSON.parse(JSON.stringify(chartConfigTemplate));
         config.data = chartData;
         
-        const chart = new Chart(canvas, config);
+        // --- HIER PASSIERT DER FEHLER (Zeile 195) ---
+        const chart = new Chart(canvas, config); // <--- 'Chart' ist 'undefined'
         
         discoveredDevices.set(deviceId, {
             card: card,
@@ -239,6 +237,14 @@ function updateChart(deviceEntry, rssi) {
 document.addEventListener('DOMContentLoaded', () => {
   try {
     if (window.__diag) window.__diag('INIT: DOMContentLoaded Event gefeuert.', 'INFO');
+
+    // --- NEUE ABHÄNGIGKEITS-PRÜFUNG ---
+    if (typeof Chart === 'undefined') {
+        // Dieser Fehler wird sofort vom try...catch-Block abgefangen
+        throw new Error('Chart.js (Chart) ist nicht geladen. Prüfe die index.html auf blockierte CDN-Links (z.B. Ad-Blocker).');
+    }
+    if (window.__diag) window.__diag('INIT: Chart.js-Abhängigkeit OK.', 'INFO');
+    // --- ENDE PRÜFUNG ---
 
     // Chart.js-Grundkonfiguration definieren
     chartConfigTemplate = {
@@ -303,8 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
     el.disconnect.addEventListener('click',async()=>{await mgr.disconnect();setConnectedUI(false);log(el.log,'DISCONNECTED','Trennen ok');});
     el.send.addEventListener('click',async()=>{try{const uuid=el.charSelect.value;if(!uuid)throw new Error('Keine Characteristic gewählt');const payload=el.input.value;const enc=el.encoding.value;const buf=encodePayload(payload,enc);await mgr.write(uuid,buf);log(el.log,'WRITE',`${uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
     
-    
-    // --- HIER IST DER AKTUALISIERTE LISTENER ---
     el.startScan.addEventListener('click', async () => {
       try {
           recordedData = []; 
@@ -333,10 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
               log(el.log, 'ERROR', 'Möglicherweise ein Hardware- oder Browser-Problem.');
           }
-          if (window.__diag) window.__diag(`SCAN-FEHLER: ${e.message}`); // Auch ins Diagnose-Log
+          if (window.__diag) window.__diag(`SCAN-FEHLER: ${e.message}`);
       }
     });
-    
     
     el.stopScan.addEventListener('click', () => {
       mgr.stopScan();
@@ -344,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
       el.stopScan.disabled = true;
       el.download.disabled = false; 
       setConnectedUI(false); 
-      log(el.log, 'INFO', 'Scan gestartet. Download ist bereit.'); // <- HINWEIS: Das sollte 'Scan gestoppt' heißen
+      log(el.log, 'INFO', 'Scan gestoppt. Download ist bereit.');
     });
     
     el.download.addEventListener('click', () => {
@@ -370,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
   } catch (e) {
     if (window.__diag) {
+      // HIER WIRD DER NEUE "Chart is not defined"-FEHLER ABGEFANGEN
       window.__diag('KRITISCH: Fehler während der App-Initialisierung (DOMContentLoaded).');
       window.__diag(`FEHLER: ${e.message}`);
       window.__diag(`STACK: ${e.stack}`);
