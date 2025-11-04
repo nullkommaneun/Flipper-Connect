@@ -11,7 +11,23 @@ import {log, shortUuid, bufferToHex, bufferToText, bufferToBase64, encodePayload
 
 // 1. Element-Selektoren
 const $=s=>document.querySelector(s);
-// ... (safeQuery unverändert) ...
+
+// --- HIER IST DIE FEHLENDE FUNKTION ---
+/**
+ * Sucht ein DOM-Element; wirft einen Fehler, wenn es nicht gefunden wird.
+ * @param {string} selector 
+ * @param {Document|HTMLElement} context 
+ * @returns {HTMLElement}
+ */
+function safeQuery(selector, context = document) {
+    const element = context.querySelector(selector);
+    if (!element) {
+        throw new Error(`Kritisches DOM-Element nicht gefunden: ${selector}`);
+    }
+    return element;
+}
+// --- ENDE FEHLENDE FUNKTION ---
+
 let el = {}; 
 
 // 2. Globale Zustandsvariablen
@@ -20,13 +36,12 @@ let notifyUnsub=null;
 let recordedData = []; 
 let discoveredDevices = new Map(); 
 
-// --- NEU: Konfiguration für die Charts ---
+// Konfiguration für die Charts
 const RSSI_HISTORY_LENGTH = 20; // Zeige die letzten 20 RSSI-Werte
-let chartConfigTemplate; // Definieren wir in DOMContentLoaded
+let chartConfigTemplate; 
 
 
 // 3. UI-Hilfsfunktionen
-// ... (setPreflight, setConnectedUI, renderExplorer, renderParsedData unverändert) ...
 function setPreflight(){
     if(BluetoothManager.preflight()){
         el.preflight.textContent='Web Bluetooth: OK';
@@ -42,26 +57,81 @@ function setConnectedUI(isConnected){
     el.state.textContent=isConnected?'Verbunden':'Getrennt';
     el.send.disabled=!isConnected;
 }
+
 function renderExplorer(tree){
-  // ... (Code unverändert)
   el.explorer.innerHTML='';
   el.charSelect.innerHTML='';
   for(const svc of tree){
-    // ... (Restlicher Code unverändert)
+    const d=document.createElement('details');
+    const s=document.createElement('summary');
+    s.textContent=`Service ${shortUuid(svc.uuid)} (${svc.uuid})`;
+    d.appendChild(s);
+    const inner=document.createElement('div');
+    inner.className='inner';
+    for(const c of svc.characteristics){
+      const row=document.createElement('div');
+      row.className = 'explorer-row';
+      const lt=document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = `Char ${shortUuid(c.uuid)}`;
+      const br = document.createElement('br');
+      const small = document.createElement('small');
+      small.textContent = c.uuid;
+      lt.append(strong, br, small);
+      const act=document.createElement('div');
+      act.className = 'explorer-actions';
+      const brBtn=document.createElement('button');
+      brBtn.textContent='Lesen';
+      brBtn.disabled=!c.props.read;
+      brBtn.addEventListener('click',async()=>{try{const buf=await mgr.read(c.uuid);log(el.log,'READ',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);}catch(e){log(el.log,'ERROR',e.message);}});
+      const bwBtn=document.createElement('button');
+      bwBtn.textContent='Schreiben';
+      bwBtn.disabled=!c.props.write;
+      bwBtn.addEventListener('click',async()=>{try{const payload=prompt('Payload (als Text)');if(!payload)return;const buf=encodePayload(payload,'text');await mgr.write(c.uuid,buf);log(el.log,'WRITE',`${c.uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
+      const bnBtn=document.createElement('button');
+      bnBtn.textContent='Subscribe';
+      bnBtn.disabled=!c.props.notify;
+      let sub=false;
+      let unsub=null;
+      bnBtn.addEventListener('click',async()=>{try{if(!sub){unsub=await mgr.startNotifications(c.uuid,(buf)=>{log(el.log,'NOTIFY',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);});bnBtn.textContent='Unsubscribe';sub=true;}else{unsub?.();bnBtn.textContent='Subscribe';sub=false;}}catch(e){log(el.log,'ERROR',e.message);}});
+      act.append(brBtn, bwBtn, bnBtn);
+      row.append(lt, act);
+      inner.append(row);
+      const opt=document.createElement('option');
+      opt.value=c.uuid;
+      opt.textContent=c.uuid;
+      el.charSelect.append(opt);
+    }
+    d.append(inner);
     el.explorer.append(d);
   }
 }
+
 function renderParsedData(parsedData) {
-    // ... (Code unverändert)
     if (parsedData.type === 'parsed') {
-        // ...
+        let html = '<dl class="parsed-data">';
+        for (const item of parsedData.data) {
+            html += `<dt>Typ</dt><dd>${item.type} (ID: ${item.companyId})</dd>`;
+            if (item.uuid) html += `<dt>UUID</dt><dd>${item.uuid}</dd>`;
+            if (item.major) html += `<dt>Major</dt><dd>${item.major}</dd>`;
+            if (item.minor) html += `<dt>Minor</dt><dd>${item.minor}</dd>`;
+            if (item.txPower) html += `<dt>TxPower</dt><dd>${item.txPower}</dd>`;
+        }
+        html += '</dl>';
         return html;
     } else {
-        // ...
+        let html = '<pre class="raw-data">';
+        if (Array.isArray(parsedData.data)) {
+            for (const item of parsedData.data) {
+                html += `ID: ${item.companyId}\nData: ${item.hex}\n`;
+            }
+        } else {
+            html += 'N/A';
+        }
+        html += '</pre>';
         return html;
     }
 }
-
 
 /**
  * Verarbeitet empfangene Beacon-Daten.
@@ -75,7 +145,11 @@ function handleBeaconData(event) {
     const parsedData = parseManufacturerData(event.manufacturerData);
     
     recordedData.push({
-        // ... (Code unverändert)
+        timestamp: new Date().toISOString(),
+        id: deviceId,
+        name: deviceName,
+        rssi: rssi,
+        manufacturerData: parsedData 
     });
 
     const dataHtml = renderParsedData(parsedData);
@@ -86,7 +160,6 @@ function handleBeaconData(event) {
         card.className = 'beacon-card';
         card.id = `device-${deviceId}`; 
         
-        // NEU: <canvas> für den Graphen hinzugefügt
         card.innerHTML = `
             <span class="rssi" data-field="rssi">${rssi}</span>
             <strong data-field="name">${deviceName}</strong>
@@ -103,26 +176,24 @@ function handleBeaconData(event) {
         `;
         el.beaconDisplay.appendChild(card);
         
-        // --- NEU: Chart.js initialisieren ---
-        const canvas = safeQuery(`#chart-${deviceId}`);
+        // Chart.js initialisieren
+        const canvas = safeQuery(`#chart-${deviceId}`); // safeQuery wird hier verwendet
         const chartData = {
              labels: Array(RSSI_HISTORY_LENGTH).fill(''),
              datasets: [{
                 label: 'RSSI',
-                data: Array(RSSI_HISTORY_LENGTH).fill(null), // Mit 'null' füllen, damit es leer startet
-                borderColor: '#00ff41', // Linienfarbe (Hacker-Grün)
+                data: Array(RSSI_HISTORY_LENGTH).fill(null),
+                borderColor: '#00ff41',
                 borderWidth: 2,
-                pointRadius: 0, // Keine Punkte
-                tension: 0.4 // Glatte Kurven
+                pointRadius: 0,
+                tension: 0.4 
             }]
         };
-        // Tiefenkopie der Vorlage erstellen
         const config = JSON.parse(JSON.stringify(chartConfigTemplate));
         config.data = chartData;
         
         const chart = new Chart(canvas, config);
         
-        // Chart-Instanz und Daten speichern
         discoveredDevices.set(deviceId, {
             card: card,
             chart: chart,
@@ -130,7 +201,6 @@ function handleBeaconData(event) {
             chartLabels: chartData.labels
         }); 
         
-        // Den ersten RSSI-Wert hinzufügen
         updateChart(discoveredDevices.get(deviceId), rssi);
     
     } else {
@@ -143,31 +213,25 @@ function handleBeaconData(event) {
         const manufDataEl = deviceEntry.card.querySelector('[data-field="manufData"]');
         manufDataEl.innerHTML = dataHtml;
         
-        // NEU: Chart aktualisieren
         updateChart(deviceEntry, rssi);
     }
 }
 
 /**
- * NEU: Hilfsfunktion zum Aktualisieren eines Graphen mit einem neuen RSSI-Wert.
+ * Hilfsfunktion zum Aktualisieren eines Graphen mit einem neuen RSSI-Wert.
  */
 function updateChart(deviceEntry, rssi) {
-    // Alten Wert entfernen (shift)
     deviceEntry.chartData.shift();
     deviceEntry.chartLabels.shift();
-    
-    // Neuen Wert hinzufügen (push)
     deviceEntry.chartData.push(rssi);
     deviceEntry.chartLabels.push('');
     
-    // Y-Achse dynamisch anpassen (optional, aber nützlich)
     const minRssi = Math.min(...deviceEntry.chartData.filter(v => v !== null));
     const maxRssi = Math.max(...deviceEntry.chartData.filter(v => v !== null));
     deviceEntry.chart.options.scales.y.min = minRssi - 5;
     deviceEntry.chart.options.scales.y.max = maxRssi + 5;
     
-    // Chart neu zeichnen
-    deviceEntry.chart.update('none'); // 'none' für keine Animation
+    deviceEntry.chart.update('none'); 
 }
 
 
@@ -176,36 +240,36 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     if (window.__diag) window.__diag('INIT: DOMContentLoaded Event gefeuert.', 'INFO');
 
-    // --- NEU: Chart.js-Grundkonfiguration definieren ---
+    // Chart.js-Grundkonfiguration definieren
     chartConfigTemplate = {
         type: 'line',
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }, // Legende ausblenden
-                tooltip: { enabled: false } // Tooltips ausblenden
+                legend: { display: false }, 
+                tooltip: { enabled: false } 
             },
             scales: {
-                x: { // X-Achse (Zeit)
-                    display: false, // Achsenbeschriftung ausblenden
+                x: { 
+                    display: false, 
                     grid: { display: false }
                 },
-                y: { // Y-Achse (RSSI)
-                    display: true, // Achse anzeigen
-                    grid: { color: '#333333' }, // Gitterlinien-Farbe
+                y: { 
+                    display: true, 
+                    grid: { color: '#333333' }, 
                     ticks: { 
-                        color: '#8f8f8f', // Achsen-Zahlen-Farbe
+                        color: '#8f8f8f', 
                         font: { size: 10 }
                     },
-                    min: -100, // Standard-Min/Max
+                    min: -100, 
                     max: -20
                 }
             }
         }
     };
-    // --- Ende NEU ---
 
+    // HIER WIRD 'safeQuery' VERWENDET
     el = {
         preflight: safeQuery('#preflight'),
         connect: safeQuery('#btnConnect'),
@@ -235,16 +299,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- Event Listeners ---
-    // ... (el.connect, el.disconnect, el.send bleiben unverändert) ...
     el.connect.addEventListener('click',async()=>{try{log(el.log,'INFO','Geräteauswahl…');const ok=await mgr.connect();if(ok){setConnectedUI(true);log(el.log,'CONNECTED',mgr.device?.name||'Unbekannt');const tree=await mgr.discover();renderExplorer(tree);}}catch(e){log(el.log,'ERROR',e.message);}});
     el.disconnect.addEventListener('click',async()=>{await mgr.disconnect();setConnectedUI(false);log(el.log,'DISCONNECTED','Trennen ok');});
     el.send.addEventListener('click',async()=>{try{const uuid=el.charSelect.value;if(!uuid)throw new Error('Keine Characteristic gewählt');const payload=el.input.value;const enc=el.encoding.value;const buf=encodePayload(payload,enc);await mgr.write(uuid,buf);log(el.log,'WRITE',`${uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
-    
-    // WICHTIG: 'el.startScan' muss 'discoveredDevices.clear()' aufrufen
     el.startScan.addEventListener('click', async () => {
       try {
           recordedData = []; 
-          discoveredDevices.clear(); // Map leeren
+          discoveredDevices.clear(); 
           el.beaconDisplay.innerHTML = ''; 
           log(el.log, 'INFO', 'Starte passiven Scan (Datenjagd)...');
           log(el.log, 'INFO', 'Beacon-Liste wird aufgebaut...');
@@ -259,8 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
           log(el.log, 'ERROR', e.message); 
       }
     });
-    
-    // ... (el.stopScan, el.download bleiben unverändert) ...
     el.stopScan.addEventListener('click', () => {
       mgr.stopScan();
       el.startScan.disabled = false;
@@ -287,7 +346,6 @@ document.addEventListener('DOMContentLoaded', () => {
       URL.revokeObjectURL(url);
       log(el.log, 'INFO', 'Download gestartet...');
     });
-
 
     if (window.__diag) window.__diag('INIT: App-Initialisierung (Listener) ERFOLGREICH.', 'INFO');
     
