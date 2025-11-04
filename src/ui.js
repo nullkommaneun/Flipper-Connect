@@ -5,11 +5,41 @@ if (window.__diag) {
   window.__diag('INIT: ui.js Modul-Ausführung gestartet.', 'INFO');
 }
 
-// Imports (WICHTIG: KEIN calculateDistance)
-import {BluetoothManager} from './bluetooth.js';
-import {log, shortUuid, bufferToHex, bufferToText, bufferToBase64, encodePayload, parseManufacturerData} from './utils.js';
+// Imports
+// NEU: startSilentAudio hinzugefügt
+import {
+    BluetoothManager
+} from './bluetooth.js';
+import {
+    log,
+    shortUuid,
+    bufferToHex,
+    bufferToText,
+    bufferToBase64,
+    encodePayload,
+    parseManufacturerData,
+    calculateDistance,
+    startSilentAudio
+} from './utils.js';
 
-// 1. Element-Selektoren
+// Import-Prüfung
+if (typeof BluetoothManager === 'undefined' || typeof log === 'undefined') {
+    throw new Error('KRITISCHER IMPORT-FEHLER: BluetoothManager oder Utils konnten nicht geladen werden.');
+}
+
+
+// 1. Globale Variablen
+let mgr;
+let el = {};
+let discoveredDevices = new Map();
+let recordedData = [];
+const RSSI_HISTORY_LENGTH = 20;
+let chartConfigTemplate;
+const STALE_TIMEOUT = 10000; 
+let staleCheckInterval = null; 
+
+
+// 2. Element-Selektoren
 const $=s=>document.querySelector(s);
 function safeQuery(selector, context = document) {
     const element = context.querySelector(selector);
@@ -18,20 +48,6 @@ function safeQuery(selector, context = document) {
     }
     return element;
 }
-
-let el = {}; 
-
-// 2. Globale Zustandsvariablen
-let mgr;
-let notifyUnsub=null;
-let recordedData = []; 
-let discoveredDevices = new Map(); 
-
-// Konfiguration für Charts & Stale-Modus
-const RSSI_HISTORY_LENGTH = 20;
-let chartConfigTemplate; 
-const STALE_TIMEOUT = 10000; // 10 Sekunden
-let staleCheckInterval = null; // Hält die ID des Timers
 
 
 // 3. UI-Hilfsfunktionen
@@ -44,6 +60,7 @@ function setPreflight(){
         if(window.__diag) window.__diag('Preflight Check: Web Bluetooth nicht unterstützt', 'WARN');
     }
 }
+
 function setConnectedUI(isConnected){
     el.connect.disabled=isConnected;
     el.disconnect.disabled=!isConnected;
@@ -73,20 +90,24 @@ function renderExplorer(tree){
       lt.append(strong, br, small);
       const act=document.createElement('div');
       act.className = 'explorer-actions';
+      
       const brBtn=document.createElement('button');
       brBtn.textContent='Lesen';
       brBtn.disabled=!c.props.read;
       brBtn.addEventListener('click',async()=>{try{const buf=await mgr.read(c.uuid);log(el.log,'READ',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);}catch(e){log(el.log,'ERROR',e.message);}});
+      
       const bwBtn=document.createElement('button');
       bwBtn.textContent='Schreiben';
       bwBtn.disabled=!c.props.write;
       bwBtn.addEventListener('click',async()=>{try{const payload=prompt('Payload (als Text)');if(!payload)return;const buf=encodePayload(payload,'text');await mgr.write(c.uuid,buf);log(el.log,'WRITE',`${c.uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
+      
       const bnBtn=document.createElement('button');
       bnBtn.textContent='Subscribe';
       bnBtn.disabled=!c.props.notify;
       let sub=false;
       let unsub=null;
       bnBtn.addEventListener('click',async()=>{try{if(!sub){unsub=await mgr.startNotifications(c.uuid,(buf)=>{log(el.log,'NOTIFY',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);});bnBtn.textContent='Unsubscribe';sub=true;}else{unsub?.();bnBtn.textContent='Subscribe';sub=false;}}catch(e){log(el.log,'ERROR',e.message);}});
+      
       act.append(brBtn, bwBtn, bnBtn);
       row.append(lt, act);
       inner.append(row);
@@ -100,10 +121,14 @@ function renderExplorer(tree){
   }
 }
 
-// Wir verwenden die renderParsedData OHNE Distanz
-function renderParsedData(parsedData) {
+function renderParsedData(parsedData, distance) {
     if (parsedData.type === 'parsed') {
         let html = '<dl class="parsed-data">';
+        
+        if (distance) {
+            html += `<dt>Distanz (ca.)</dt><dd class="distance">${distance.toFixed(2)} m</dd>`;
+        }
+        
         for (const item of parsedData.data) {
             html += `<dt>Typ</dt><dd>${item.type} (ID: ${item.companyId})</dd>`;
             if (item.uuid) html += `<dt>UUID</dt><dd>${item.uuid}</dd>`;
@@ -127,31 +152,30 @@ function renderParsedData(parsedData) {
     }
 }
 
-/**
- * Verarbeitet empfangene Beacon-Daten.
- */
 function handleBeaconData(event) {
     const deviceName = event.device.name || 'Unbekanntes Gerät';
     const deviceId = event.device.id;
     const rssi = event.rssi;
     
-    // 1. Daten parsen
     const parsedData = parseManufacturerData(event.manufacturerData);
     
-    // 2. Für JSON speichern (OHNE Distanz)
+    let distance = null;
+    if (parsedData.txPower) {
+        distance = calculateDistance(rssi, parsedData.txPower, 3.0);
+    }
+    
     recordedData.push({
         timestamp: new Date().toISOString(),
         id: deviceId,
         name: deviceName,
         rssi: rssi,
         manufacturerData: parsedData,
+        estimatedDistance: distance ? distance.toFixed(2) + 'm' : null
     });
 
-    // 3. Live-UI
-    const dataHtml = renderParsedData(parsedData); // OHNE Distanz
+    const dataHtml = renderParsedData(parsedData, distance);
     
     if (!discoveredDevices.has(deviceId)) {
-        // --- GERÄT IST NEU ---
         const card = document.createElement('div');
         card.className = 'beacon-card';
         if (parsedData.txPower) {
@@ -198,17 +222,16 @@ function handleBeaconData(event) {
             chartData: chartData.datasets[0].data,
             chartLabels: chartData.labels,
             rssi: rssi,
-            lastSeen: Date.now() // Zeitstempel setzen
+            lastSeen: Date.now() 
         }); 
         
         updateChart(discoveredDevices.get(deviceId), rssi);
     
     } else {
-        // --- GERÄT IST BEKANNT ---
         const deviceEntry = discoveredDevices.get(deviceId);
         
         deviceEntry.rssi = rssi;
-        deviceEntry.lastSeen = Date.now(); // Zeitstempel aktualisieren
+        deviceEntry.lastSeen = Date.now(); 
         
         deviceEntry.card.querySelector('[data-field="rssi"]').textContent = rssi;
         deviceEntry.card.querySelector('[data-field="name"]').textContent = deviceName;
@@ -222,9 +245,6 @@ function handleBeaconData(event) {
     }
 }
 
-/**
- * Hilfsfunktion zum Aktualisieren eines Graphen mit einem neuen RSSI-Wert.
- */
 function updateChart(deviceEntry, rssi) {
     deviceEntry.chartData.shift();
     deviceEntry.chartLabels.shift();
@@ -239,9 +259,6 @@ function updateChart(deviceEntry, rssi) {
     deviceEntry.chart.update('none'); 
 }
 
-/**
- * Sortiert die Beacon-Liste im DOM nach dem zuletzt gesehenen RSSI.
- */
 function sortDisplayByRssi() {
     log(el.log, 'INFO', 'Sortiere Beacon-Liste nach RSSI (stärkstes Signal zuerst)...');
     
@@ -258,9 +275,6 @@ function sortDisplayByRssi() {
     });
 }
 
-/**
- * Timer-Funktion, die alte Geräte ausgraut.
- */
 function checkStaleDevices() {
     const now = Date.now();
     for (const device of discoveredDevices.values()) {
@@ -333,12 +347,31 @@ function init() {
             logEl: el.log
         });
         
+        // --- NEU: Eine Hilfsfunktion zum Loggen erstellen ---
+        const logToTerminal = (type, msg) => log(el.log, type, msg);
+        
         // 6. Alle Event-Listener registrieren
-        el.connect.addEventListener('click',async()=>{try{log(el.log,'INFO','Geräteauswahl…');const ok=await mgr.connect();if(ok){setConnectedUI(true);log(el.log,'CONNECTED',mgr.device?.name||'Unbekannt');const tree=await mgr.discover();renderExplorer(tree);}}catch(e){log(el.log,'ERROR',e.message);}});
+        el.connect.addEventListener('click',async()=>{
+            startSilentAudio(logToTerminal); // Audio beim ersten Klick starten
+            try {
+                log(el.log,'INFO','Geräteauswahl…');
+                const ok=await mgr.connect();
+                if(ok){
+                    setConnectedUI(true);
+                    log(el.log,'CONNECTED',mgr.device?.name||'Unbekannt');
+                    const tree=await mgr.discover();
+                    renderExplorer(tree);
+                }
+            } catch(e) {
+                log(el.log,'ERROR',e.message);
+            }
+        });
+        
         el.disconnect.addEventListener('click',async()=>{await mgr.disconnect();setConnectedUI(false);log(el.log,'DISCONNECTED','Trennen ok');});
         el.send.addEventListener('click',async()=>{try{const uuid=el.charSelect.value;if(!uuid)throw new Error('Keine Characteristic gewählt');const payload=el.input.value;const enc=el.encoding.value;const buf=encodePayload(payload,enc);await mgr.write(uuid,buf);log(el.log,'WRITE',`${uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
         
         el.startScan.addEventListener('click', async () => {
+          startSilentAudio(logToTerminal); // Audio beim ersten Klick starten
           try {
               recordedData = []; 
               discoveredDevices.clear(); 
