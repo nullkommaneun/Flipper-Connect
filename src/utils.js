@@ -13,6 +13,10 @@ export function ts() {
  * @param {string} msg
  */
 export function log(el, type, msg) {
+    if (!el) { // Sicherheitsabfrage, falls log vor init aufgerufen wird
+        console.error(`LOG [${type}]: ${msg}`);
+        return;
+    }
     const line = document.createElement('div');
     const t = document.createElement('span');
     t.className = 'ts';
@@ -107,7 +111,7 @@ export function encodePayload(input, enc) {
 }
 
 
-// --- Parser- und Distanzlogik (DIESE FEHLTE) ---
+// --- Parser- und Distanzlogik ---
 
 /**
  * Formatiert 16 Bytes (aus einem DataView) in einen UUID-String.
@@ -129,14 +133,14 @@ function bytesToUuid(dataView, offset = 0) {
 
 /**
  * Hilfsfunktion zur Distanzberechnung (Log-Distance Path Loss Model).
- * @param {number} rssi - Aktuell gemessener RSSI (z.B. -70)
- * @param {number} txPower - Kalibrierte Sendeleistung auf 1m (z.B. -59)
- * @param {number} n - Umweltfaktor (typ. 2.0-4.0)
- * @returns {number} Geschätzte Distanz in Metern
+ * @param {number} rssi
+ * @param {number} txPower
+ * @param {number} n
+ * @returns {number}
  */
 export function calculateDistance(rssi, txPower, n = 3.0) {
     if (rssi === 0 || txPower === 0) {
-        return -1.0; // Ungültige Werte
+        return -1.0; 
     }
 
     const ratio = rssi * 1.0 / txPower;
@@ -162,7 +166,7 @@ function parseAppleiBeacon(dataView) {
         const uuid = bytesToUuid(dataView, 2);
         const major = dataView.getUint16(18);
         const minor = dataView.getUint16(20);
-        const txPower = dataView.getInt8(22); // Als Zahl (z.B. -59)
+        const txPower = dataView.getInt8(22); 
         
         return {
             type: 'iBeacon (Apple)',
@@ -215,5 +219,61 @@ export function parseManufacturerData(manufDataMap) {
         return { type: 'parsed', data: parsedResults, txPower: topTxPower };
     } else {
         return { type: 'raw', data: rawHex };
+    }
+}
+
+
+// --- NEUE AUDIO-FUNKTION ---
+let _audioContext = null;
+
+/**
+ * Startet einen stillen, Endlos-Audio-Stream, um zu verhindern,
+ * dass der Browser die App im Hintergrund anhält.
+ * Darf nur nach einer Benutzerinteraktion (Klick) aufgerufen werden.
+ * @param {function} logFn - Die 'log'-Funktion aus ui.js, um Erfol/Misserfolg zu melden.
+ */
+export function startSilentAudio(logFn) {
+    if (_audioContext) {
+        return; // Läuft bereits
+    }
+
+    try {
+        _audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Erzeuge einen Oszillator (eine Schallquelle)
+        const oscillator = _audioContext.createOscillator();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(1, _audioContext.currentTime); // 1 Hz (unhörbar)
+
+        // Erzeuge einen GainNode (Lautstärkeregler)
+        const gainNode = _audioContext.createGain();
+        
+        // --- STUMMSCHALTEN ---
+        // Setze die Lautstärke auf fast 0 (0.001), da manche Browser 0.0 ignorieren
+        gainNode.gain.setValueAtTime(0.001, _audioContext.currentTime);
+        // Fade es dann sofort auf fast unendlich leise herunter
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, _audioContext.currentTime + 1);
+
+        // Verbinde die Kette: Oszillator -> Lautstärkeregler -> Lautsprecher
+        oscillator.connect(gainNode);
+        gainNode.connect(_audioContext.destination);
+        
+        // Starte den Ton
+        oscillator.start();
+        
+        // Falls der AudioContext im "Suspended"-Modus gestartet wurde (Autoplay-Richtlinie)
+        if (_audioContext.state === 'suspended') {
+            _audioContext.resume();
+        }
+
+        if (logFn) {
+            logFn('INFO', 'Stiller Audio-Stream gestartet (verhindert App-Suspendierung).');
+        }
+
+    } catch (e) {
+        if (logFn) {
+            logFn('ERROR', 'Stiller Audio-Stream konnte nicht gestartet werden: ' + e.message);
+        }
+        _audioContext = null;
     }
 }
