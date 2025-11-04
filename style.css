@@ -195,13 +195,19 @@ select:focus, textarea:focus {
 .err { color: var(--error-color); }
 
 
-/* --- NEU: Beacon-Liste (Phase 2) --- */
+/* --- ANGEPASST: Beacon-Liste (Phase 2) --- */
 .beacon-display {
     margin-top: 1.5rem;
     display: grid;
-    /* Erstellt automatisch Spalten, die min. 300px breit sind */
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
+    
+    /* NEUE REGELN, um es scrollbar zu machen */
+    height: 400px; /* Feste Höhe */
+    overflow-y: auto; /* Vertikaler Scrollbalken bei Bedarf */
+    background: #000; /* Passender Hintergrund */
+    border: 1px solid var(--border-color); /* Passender Rand */
+    padding: 1rem; /* Innenabstand */
 }
 
 .beacon-card {
@@ -215,7 +221,6 @@ select:focus, textarea:focus {
     color: var(--accent-color);
     font-size: 1.1rem;
     display: block;
-    /* Platz für den RSSI-Wert lassen */
     padding-right: 60px;
     word-break: break-all;
 }
@@ -235,7 +240,6 @@ select:focus, textarea:focus {
     display: block;
 }
 
-/* Kleines <pre>-Feld für die Rohdaten */
 .beacon-card pre {
     background: #000;
     padding: 0.5rem;
@@ -246,7 +250,7 @@ select:focus, textarea:focus {
     font-size: 0.8rem;
     color: var(--dim-color);
 }
-/* --- Ende NEU --- */
+/* --- Ende Anpassung --- */
 
 
 /* ------------------------------------------------------------------------- */
@@ -277,4 +281,3 @@ select:focus, textarea:focus {
     color: var(--bg-color);
     font-weight: bold;
 }
- 
