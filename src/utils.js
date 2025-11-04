@@ -13,7 +13,7 @@ export function ts() {
  * @param {string} msg
  */
 export function log(el, type, msg) {
-    if (!el) { // Sicherheitsabfrage, falls log vor init aufgerufen wird
+    if (!el) { 
         console.error(`LOG [${type}]: ${msg}`);
         return;
     }
@@ -169,7 +169,7 @@ function parseAppleiBeacon(dataView) {
         const txPower = dataView.getInt8(22); 
         
         return {
-            type: 'iBeacon (Apple)',
+            type: 'iBeacon', // (Entferne "Apple" von hier)
             uuid,
             major,
             minor,
@@ -182,9 +182,10 @@ function parseAppleiBeacon(dataView) {
 /**
  * Haupt-Parser für Manufacturer-Daten.
  * @param {Map<number, DataView>} manufDataMap
+ * @param {Map<string, string>} companyIdMap - Die geladene Hersteller-Map
  * @returns {object}
  */
-export function parseManufacturerData(manufDataMap) {
+export function parseManufacturerData(manufDataMap, companyIdMap) {
     let parsedResults = [];
     let rawHex = [];
     let topTxPower = null; 
@@ -195,6 +196,9 @@ export function parseManufacturerData(manufDataMap) {
 
     for (let [companyId, dataView] of manufDataMap.entries()) {
         const companyIdHex = `0x${companyId.toString(16).toUpperCase().padStart(4, '0')}`;
+        // --- NEU: ID nachschlagen ---
+        const companyName = companyIdMap.get(companyIdHex) || `Unbekannt (${companyIdHex})`;
+        
         let parsed = null;
 
         if (companyId === 0x004C) { // Apple
@@ -203,6 +207,7 @@ export function parseManufacturerData(manufDataMap) {
         
         if (parsed) {
             parsed.companyId = companyIdHex;
+            parsed.companyName = companyName; // Namen hinzufügen
             parsedResults.push(parsed);
             if (parsed.txPower && topTxPower === null) {
                 topTxPower = parsed.txPower;
@@ -211,6 +216,7 @@ export function parseManufacturerData(manufDataMap) {
         
         rawHex.push({
             companyId: companyIdHex,
+            companyName: companyName, // Namen auch zu Rohdaten hinzufügen
             hex: bufferToHex(dataView.buffer)
         });
     }
@@ -218,62 +224,38 @@ export function parseManufacturerData(manufDataMap) {
     if (parsedResults.length > 0) {
         return { type: 'parsed', data: parsedResults, txPower: topTxPower };
     } else {
+        // Rohdaten zurückgeben, aber mit aufgelöstem Namen
         return { type: 'raw', data: rawHex };
     }
 }
 
 
-// --- NEUE AUDIO-FUNKTION ---
-let _audioContext = null;
-
 /**
- * Startet einen stillen, Endlos-Audio-Stream, um zu verhindern,
- * dass der Browser die App im Hintergrund anhält.
- * Darf nur nach einer Benutzerinteraktion (Klick) aufgerufen werden.
- * @param {function} logFn - Die 'log'-Funktion aus ui.js, um Erfol/Misserfolg zu melden.
+ * NEU: Lädt die JSON-Datei mit den Hersteller-IDs.
+ * @param {function} logFn - Die 'log'-Funktion zum Melden von Fehlern.
+ * @returns {Map<string, string>}
  */
-export function startSilentAudio(logFn) {
-    if (_audioContext) {
-        return; // Läuft bereits
-    }
-
+export async function loadCompanyIDs(logFn) {
+    const idMap = new Map();
     try {
-        _audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Erzeuge einen Oszillator (eine Schallquelle)
-        const oscillator = _audioContext.createOscillator();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(1, _audioContext.currentTime); // 1 Hz (unhörbar)
-
-        // Erzeuge einen GainNode (Lautstärkeregler)
-        const gainNode = _audioContext.createGain();
-        
-        // --- STUMMSCHALTEN ---
-        // Setze die Lautstärke auf fast 0 (0.001), da manche Browser 0.0 ignorieren
-        gainNode.gain.setValueAtTime(0.001, _audioContext.currentTime);
-        // Fade es dann sofort auf fast unendlich leise herunter
-        gainNode.gain.exponentialRampToValueAtTime(0.00001, _audioContext.currentTime + 1);
-
-        // Verbinde die Kette: Oszillator -> Lautstärkeregler -> Lautsprecher
-        oscillator.connect(gainNode);
-        gainNode.connect(_audioContext.destination);
-        
-        // Starte den Ton
-        oscillator.start();
-        
-        // Falls der AudioContext im "Suspended"-Modus gestartet wurde (Autoplay-Richtlinie)
-        if (_audioContext.state === 'suspended') {
-            _audioContext.resume();
+        const response = await fetch('./src/company_ids.json');
+        if (!response.ok) {
+            throw new Error(`HTTP-Fehler ${response.status}`);
         }
-
-        if (logFn) {
-            logFn('INFO', 'Stiller Audio-Stream gestartet (verhindert App-Suspendierung).');
+        const data = await response.json();
+        
+        // Lade die Daten in die Map
+        for (const [id, name] of Object.entries(data)) {
+            idMap.set(id, name);
         }
-
+        
+        if (logFn) logFn('INFO', `Hersteller-Bibliothek geladen (${idMap.size} Einträge).`);
+        return idMap;
+        
     } catch (e) {
-        if (logFn) {
-            logFn('ERROR', 'Stiller Audio-Stream konnte nicht gestartet werden: ' + e.message);
-        }
-        _audioContext = null;
+        if (logFn) logFn('ERROR', 'Hersteller-Bibliothek (company_ids.json) konnte nicht geladen werden: ' + e.message);
+        // Gib eine leere Map zurück, damit die App weiterläuft
+        return idMap;
     }
 }
+ 
