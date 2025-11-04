@@ -1,5 +1,5 @@
 /* === utils.js === */
-import { diagLog } from './ui.js';
+import { diagLog } from './logger.js'; // KORRIGIERTER IMPORT
 
 // Das Company ID Mapping (wird von loadCompanyIDs geladen)
 let companyIDs = {};
@@ -30,7 +30,7 @@ export function calculateDistance(txPower, rssi) {
     // Standard-TxPower, falls nicht im Advertisement, aber Gerät bekannt (Platzhalter)
     // Ein echter TxPower-Wert von 0 ist unwahrscheinlich, wird oft als Platzhalter für "nicht verfügbar" genutzt.
     // Wir nehmen einen Standardwert von -59 an, wenn txPower 0 oder ungültig ist.
-    const effectiveTxPower = (txPower === 0) ? -59 : txPower;
+    const effectiveTxPower = (txPower === 0 || txPower === 127) ? -59 : txPower;
 
     if (rssi === 0) {
         return null; // Kann nicht berechnet werden
@@ -46,7 +46,7 @@ export function calculateDistance(txPower, rssi) {
 }
 
 // -------------------------------------------------------------------------
-// NEUE PARSING-ARCHITEKTUR (PHASE 3)
+// PARSING-ARCHITEKTUR (PHASE 3)
 // -------------------------------------------------------------------------
 
 /**
@@ -65,7 +65,8 @@ export function parseAdvertisementData(event) {
         name: deviceName,
         company: 'Unknown',
         type: 'Generic BLE',
-        telemetry: null // Hier landen Sensorwerte
+        telemetry: null, // Hier landen Sensorwerte
+        txPower: event.txPower || 127 // Standard-Event-TxPower (127 = nicht verfügbar)
     };
 
     // 1. Manufacturer Data parsen (iBeacon, RuuviTag, etc.)
@@ -82,35 +83,31 @@ export function parseAdvertisementData(event) {
                 case 0x004C: // Apple (iBeacon)
                     parsedData.type = 'iBeacon';
                     parsedData.beaconData = parseAppleIBeacon(dataView);
+                    // iBeacon hat TxPower im Paket, das zuverlässiger ist
+                    if (parsedData.beaconData && parsedData.beaconData.txPower) {
+                         parsedData.txPower = parsedData.beaconData.txPower;
+                    }
                     break;
                 case 0x0499: // Ruuvi Innovations Ltd (RuuviTag)
                     parsedData.type = 'RuuviTag';
-                    // Versuch, das Format zu parsen
                     const ruuviData = parseRuuviTag(dataView);
                     if (ruuviData) {
-                        parsedData.telemetry = ruuviData;
+                        parsedData.telemetry = ruuviData.telemetry;
+                        // Ruuvi Format 5 hat TxPower im Paket
+                        if (ruuviData.txPower !== undefined) {
+                            parsedData.txPower = ruuviData.txPower;
+                        }
                     } else {
                         parsedData.type = 'RuuviTag (Unknown Format)';
                     }
                     break;
-                // Zukünftige industrielle Parser hier einfügen...
-                // case 0x0059: // Nordic Semiconductor
-                // case 0x00D2: // Bosch
-                //     break;
             }
         }
     }
 
     // 2. Service Data parsen (z.B. BTHome)
-    // (Implementierung in einem späteren Schritt, hier als Platzhalter)
     if (serviceData) {
-         for (const [uuid, dataView] of serviceData.entries()) {
-             // BTHome (0xFCD2) oder andere Service-basierte Protokolle
-             // if (uuid.includes('fcd2')) {
-             //    parsedData.type = 'BTHome';
-             //    parsedData.telemetry = parseBTHome(dataView);
-             // }
-         }
+         // (Platzhalter für zukünftige Parser)
     }
 
     return parsedData;
@@ -194,10 +191,10 @@ function parseRuuviTag(dataView) {
             const voltage = (powerInfo >>> 5) + 1600; // Offset 1600mV
             telemetry.voltage = (voltage === 4647) ? null : (voltage / 1000); // Umrechnung in V
             // Tx Power (unterste 5 bits)
-            // const txPower = (powerInfo & 0x001F) * 2 - 40; // Offset -40dBm
-            // (Wir nutzen TxPower aus dem iBeacon-Teil, falls vorhanden, oder das txPower des Events)
+            const txPowerRaw = (powerInfo & 0x001F);
+            const txPower = (txPowerRaw === 0b11111) ? null : (txPowerRaw * 2 - 40); // Offset -40dBm
 
-            return telemetry;
+            return { telemetry, txPower };
 
         } catch (e) {
             diagLog(`Fehler beim Parsen von RuuviTag: ${e}`, 'error');
@@ -205,7 +202,6 @@ function parseRuuviTag(dataView) {
         }
     }
     
-    // Andere Ruuvi-Formate (3, 4) könnten hier implementiert werden.
     diagLog(`Unbekanntes RuuviFormat: ${format}`, 'utils');
     return null;
 }
