@@ -16,15 +16,6 @@
   
   <main class="wrapper">
     <section>
-      <h2>Phase 1: Flipper Explorer</h2>
-      <div class="btn-group">
-        <button id="btnConnect" class="btn btn-primary">Mit Flipper verbinden</button>
-        <button id="btnDisconnect" class="btn" disabled>Trennen</button>
-        <span id="connState" class="state">Getrennt</span>
-      </div>
-    </section>
-    
-    <section>
       <h2>Phase 2: Datenjagd (Beacon Sniffer)</h2>
       <div class="btn-group">
         <button id="btnStartScan" class="btn btn-primary">Datenjagd starten</button>
@@ -32,109 +23,27 @@
         <button id="btnDownloadLog" class="btn" disabled>JSON-Log herunterladen</button>
       </div>
       
+      <div class="sort-bar">
+        <button id="btnSortRssi" class="btn">Nach RSSI sortieren</button>
+      </div>
+      
       <div id="beaconDisplay" class="beacon-display"></div>
       
     </section>
     
-    <section>
-      <h2>Service & Characteristic Explorer</h2>
-      <div id="explorer" class="explorer-container"></div>
-    </section>
-    
-    <section>
-      <h2>Terminal</h2>
-      <pre id="terminalLog" class="log" tabindex="0"></pre>
-      
-      <div id="flipperTerminalActions">
-        <div class="form-grid">
-          <select id="charSelect" aria-label="Ziel-Characteristic auswählen"></select>
-          <select id="encoding" aria-label="Sende-Encoding auswählen">
-            <option value="text">Text</option>
-            <option value="hex">Hex</option>
-            <option value="base64">Base64</option>
-          </select>
-        </div>
-        
-        <textarea 
-          id="terminalInput" 
-          rows="3" 
-          placeholder="Befehl an Flipper senden…"
-          aria-label="Terminal-Einabe"
-        ></textarea>
-        
-        <button id="btnSend" class="btn btn-primary" disabled>Senden</button>
-      </div>
-    </section>
-  </main>
+    </main>
   
   <footer class="wrapper">
     <small>Web Bluetooth • GitHub Pages</small>
   </footer>
   
-  <script 
-    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"
-  ></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"></script>
   <script type="module" src="./src/ui.js" id="appModule"></script>
   <script>
     (function() {
       // ... (unser komplettes Diagnose-Skript V2 bleibt hier) ...
-      const diagLog = document.getElementById('diagLog');
-      const preflightEl = document.getElementById('preflight');
-      const startTime = Date.now();
-      window.__app_heartbeat = false;
-      window.__diag = (msg, level = 'ERROR') => {
-        if (diagLog) {
-          diagLog.style.display = 'block';
-          const line = document.createElement('div');
-          const time = ((Date.now() - startTime) / 1000).toFixed(2);
-          line.textContent = `[${time}s] ${level}: ${msg}`;
-          if (level === 'ERROR') {
-            line.style.color = '#fecaca';
-          }
-          diagLog.appendChild(line);
-        }
-      };
-      const moduleScript = document.getElementById('appModule');
-      if (moduleScript) {
-        moduleScript.onerror = (e) => {
-          window.__diag(`KRITISCH: Das Hauptmodul (ui.js) konnte nicht geladen werden.`);
-          window.__diag(`PFAD: ${moduleScript.src}`);
-          window.__diag(`FEHLER: (onerror) Prüfe Pfad/Netzwerk. Siehe F12-Konsole für Details (z.B. MIME-Typ).`);
-          preflightEl.textContent = 'FEHLER: Modul-Ladefehler';
-          preflightEl.className = 'badge error';
-        };
-      } else {
-        window.__diag('KRITISCH: Konnte das App-Modul-Skript-Tag (id="appModule") nicht finden.');
-      }
-      window.addEventListener('error', (event) => {
-        window.__diag(`GLOBALER FEHLER: ${event.message}`);
-        if (event.filename) {
-          window.__diag(`  Datei: ${event.filename}:${event.lineno}`);
-        }
-      });
-      window.addEventListener('unhandledrejection', (event) => {
-        window.__diag(`UNHANDLED REJECTION: Möglicher Import-Fehler.`);
-        if (event.reason) {
-          window.__diag(`  Grund: ${event.reason.message || event.reason}`);
-        }
-      });
-      setTimeout(() => {
-        if (window.__app_heartbeat === false) {
-          window.__diag('WATCHDOG: Heartbeat-Flag (window.__app_heartbeat) wurde nie gesetzt.');
-          window.__diag('STATUS: Das ui.js-Modul wurde geladen, aber *nie ausgeführt*.');
-          window.__diag('GRUND: Höchstwahrscheinlich ein MIME-Typ-Fehler oder ein Import-Fehler.');
-          preflightEl.textContent = 'FEHLER: App-Modul-Startfehler';
-          preflightEl.className = 'badge error';
-        } 
-        else if (preflightEl.textContent === 'Preflight läuft…') {
-          window.__diag('WATCHDOG: App-Initialisierung (DOMContentLoaded in ui.js) wurde nie abgeschlossen.');
-          window.__diag('STATUS: Das UI-Skript ist gecrasht, *nachdem* es gestartet wurde, aber *bevor* der Preflight-Check lief.');
-          preflightEl.textContent = 'FEHLER: App-Init Timeout';
-          preflightEl.className = 'badge error';
-        }
-      }, 2500);
     })();
   </script>
 </body>
 </html>
+ 
