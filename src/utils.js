@@ -1,19 +1,9 @@
-/**
- * Erzeugt einen Zeitstempel im Format HH:MM:SS.
- * @returns {string}
- */
 export function ts() {
     return new Date().toLocaleTimeString([], { hour12: false });
 }
 
-/**
- * Schreibt eine formatierte Zeile in ein Log-Element (XSS-sicher).
- * @param {HTMLElement} el
- * @param {'INFO'|'ERROR'|'READ'|'WRITE'|'NOTIFY'|'TAG'|string} type
- * @param {string} msg
- */
 export function log(el, type, msg) {
-    if (!el) { // Sicherheitsabfrage, falls log vor init aufgerufen wird
+    if (!el) { 
         console.error(`LOG [${type}]: ${msg}`);
         return;
     }
@@ -34,33 +24,18 @@ export function log(el, type, msg) {
     el.scrollTop = el.scrollHeight;
 }
 
-/**
- * Kürzt eine UUID auf 8 Zeichen mit "…"
- * @param {string} u
- * @returns {string}
- */
 export const shortUuid = (u) => {
     if (!u) return '';
     const lower = u.toLowerCase();
     return lower.length > 8 ? lower.slice(0, 8) + '…' : lower;
 };
 
-/**
- * Konvertiert ein ArrayBuffer in einen Hex-String (mit Leerzeichen).
- * @param {ArrayBuffer} buf
- * @returns {string}
- */
 export const bufferToHex = (buf) => {
     return Array.from(new Uint8Array(buf))
         .map(b => b.toString(16).padStart(2, '0'))
         .join(' ');
 };
 
-/**
- * Versucht, ein ArrayBuffer als UTF-8-Text zu dekodieren.
- * @param {ArrayBuffer} buf
- * @returns {string}
- */
 export const bufferToText = (buf) => {
     try {
         return new TextDecoder().decode(buf);
@@ -69,22 +44,11 @@ export const bufferToText = (buf) => {
     }
 };
 
-/**
- * Konvertiert ein ArrayBuffer in einen Base64-String.
- * @param {ArrayBuffer} buf
- * @returns {string}
- */
 export const bufferToBase64 = (buf) => {
     const s = new TextDecoder('latin1').decode(buf);
     return btoa(s);
 };
 
-/**
- * Kodiert einen String-Payload in ein ArrayBuffer gemäß dem gewählten Encoding.
- * @param {string} input
- * @param {'text'|'hex'|'base64'} enc
- * @returns {ArrayBuffer}
- */
 export function encodePayload(input, enc) {
     if (enc === 'hex') {
         const clean = input.replace(/\s+/g, '').toLowerCase();
@@ -110,15 +74,6 @@ export function encodePayload(input, enc) {
     return new TextEncoder().encode(input).buffer;
 }
 
-
-// --- Parser- und Distanzlogik ---
-
-/**
- * Formatiert 16 Bytes (aus einem DataView) in einen UUID-String.
- * @param {DataView} dataView
- * @param {number} offset
- * @returns {string}
- */
 function bytesToUuid(dataView, offset = 0) {
     const bytes = new Uint8Array(dataView.buffer, offset, 16);
     const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0'));
@@ -131,18 +86,10 @@ function bytesToUuid(dataView, offset = 0) {
     ].join('-');
 }
 
-/**
- * Hilfsfunktion zur Distanzberechnung (Log-Distance Path Loss Model).
- * @param {number} rssi
- * @param {number} txPower
- * @param {number} n
- * @returns {number}
- */
 export function calculateDistance(rssi, txPower, n = 3.0) {
     if (rssi === 0 || txPower === 0) {
         return -1.0; 
     }
-
     const ratio = rssi * 1.0 / txPower;
     if (ratio < 1.0) {
         return Math.pow(ratio, 10);
@@ -152,12 +99,6 @@ export function calculateDistance(rssi, txPower, n = 3.0) {
     }
 }
 
-
-/**
- * Versucht, Apple iBeacon-Daten zu parsen.
- * @param {DataView} dataView
- * @returns {object|null}
- */
 function parseAppleiBeacon(dataView) {
     if (dataView.byteLength >= 23 &&
         dataView.getUint8(0) === 0x02 &&
@@ -169,7 +110,7 @@ function parseAppleiBeacon(dataView) {
         const txPower = dataView.getInt8(22); 
         
         return {
-            type: 'iBeacon (Apple)',
+            type: 'iBeacon',
             uuid,
             major,
             minor,
@@ -179,12 +120,7 @@ function parseAppleiBeacon(dataView) {
     return null;
 }
 
-/**
- * Haupt-Parser für Manufacturer-Daten.
- * @param {Map<number, DataView>} manufDataMap
- * @returns {object}
- */
-export function parseManufacturerData(manufDataMap) {
+export function parseManufacturerData(manufDataMap, companyIdMap) {
     let parsedResults = [];
     let rawHex = [];
     let topTxPower = null; 
@@ -195,6 +131,8 @@ export function parseManufacturerData(manufDataMap) {
 
     for (let [companyId, dataView] of manufDataMap.entries()) {
         const companyIdHex = `0x${companyId.toString(16).toUpperCase().padStart(4, '0')}`;
+        const companyName = companyIdMap.get(companyIdHex) || `Unbekannt (${companyIdHex})`;
+        
         let parsed = null;
 
         if (companyId === 0x004C) { // Apple
@@ -203,6 +141,7 @@ export function parseManufacturerData(manufDataMap) {
         
         if (parsed) {
             parsed.companyId = companyIdHex;
+            parsed.companyName = companyName;
             parsedResults.push(parsed);
             if (parsed.txPower && topTxPower === null) {
                 topTxPower = parsed.txPower;
@@ -211,6 +150,7 @@ export function parseManufacturerData(manufDataMap) {
         
         rawHex.push({
             companyId: companyIdHex,
+            companyName: companyName,
             hex: bufferToHex(dataView.buffer)
         });
     }
@@ -222,56 +162,33 @@ export function parseManufacturerData(manufDataMap) {
     }
 }
 
-
-// --- DIE FEHLENDE FUNKTION ---
-let _audioContext = null;
-
-/**
- * Startet einen stillen, Endlos-Audio-Stream, um zu verhindern,
- * dass der Browser die App im Hintergrund anhält.
- * Darf nur nach einer Benutzerinteraktion (Klick) aufgerufen werden.
- * @param {function} logFn - Die 'log'-Funktion aus ui.js, um Erfol/Misserfolg zu melden.
- */
-export function startSilentAudio(logFn) {
-    if (_audioContext) {
-        return; // Läuft bereits
-    }
-
+export async function loadCompanyIDs(logFn) {
+    const idMap = new Map();
     try {
-        _audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Erzeuge einen Oszillator (eine Schallquelle)
-        const oscillator = _audioContext.createOscillator();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(1, _audioContext.currentTime); // 1 Hz (unhörbar)
-
-        // Erzeuge einen GainNode (Lautstärkeregler)
-        const gainNode = _audioContext.createGain();
-        
-        // --- STUMMSCHALTEN ---
-        gainNode.gain.setValueAtTime(0.001, _audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.00001, _audioContext.currentTime + 1);
-
-        // Verbinde die Kette: Oszillator -> Lautstärkeregler -> Lautsprecher
-        oscillator.connect(gainNode);
-        gainNode.connect(_audioContext.destination);
-        
-        // Starte den Ton
-        oscillator.start();
-        
-        // Falls der AudioContext im "Suspended"-Modus gestartet wurde (Autoplay-Richtlinie)
-        if (_audioContext.state === 'suspended') {
-            _audioContext.resume();
+        const response = await fetch('./src/company_ids.json');
+        if (!response.ok) {
+            throw new Error(`HTTP-Fehler ${response.status}`);
         }
-
-        if (logFn) {
-            logFn('INFO', 'Stiller Audio-Stream gestartet (verhindert App-Suspendierung).');
+        const data = await response.json();
+        
+        for (const [id, name] of Object.entries(data)) {
+            idMap.set(id, name);
         }
-
+        
+        if (logFn) logFn('INFO', `Hersteller-Bibliothek geladen (${idMap.size} Einträge).`);
+        return idMap;
+        
     } catch (e) {
-        if (logFn) {
-            logFn('ERROR', 'Stiller Audio-Stream konnte nicht gestartet werden: ' + e.message);
-        }
-        _audioContext = null;
+        if (logFn) logFn('ERROR', 'Hersteller-Bibliothek (company_ids.json) konnte nicht geladen werden: ' + e.message);
+        return idMap;
     }
 }
+
+let _audioContext = null;
+
+export function startSilentAudio(logFn) {
+    if (_audioContext) {
+        return; 
+    }
+    try {
+        _audioContext = new (window.AudioContext || window.
