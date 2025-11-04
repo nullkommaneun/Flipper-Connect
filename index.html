@@ -18,58 +18,12 @@
   <header class="container">
     <h1>Flipper Web Bluetooth Workbench</h1>
     <p id="preflight" class="badge">Preflight läuft…</p>
+    
+    <pre id="diagLog" class="diag-log"></pre>
+    
   </header>
   <main class="container">
-    <section>
-      <h2>Phase 1: Flipper Explorer</h2>
-      <div class="grid grid-connect">
-        <button id="btnConnect" class="contrast">Mit Flipper verbinden</button>
-        <button id="btnDisconnect" class="secondary" disabled>Trennen</button>
-        <span id="connState" class="state">Getrennt</span>
-      </div>
-    </section>
-    
-    <section>
-      <h2>Phase 2: Datenjagd (Beacon Sniffer)</h2>
-      <div class="grid grid-connect">
-        <button id="btnStartScan" class="contrast">Datenjagd starten</button>
-        <button id="btnStopScan" class="secondary" disabled>Scan stoppen</button>
-        <button id="btnDownloadLog" class="secondary" disabled>JSON-Log herunterladen</button>
-      </div>
-    </section>
-    
-    <section>
-      <h2>Service & Characteristic Explorer</h2>
-      <div id="explorer" class="accordion"></div>
-    </section>
-    
-    <section>
-      <h2>Terminal</h2>
-      <pre id="terminalLog" class="log" tabindex="0"></pre>
-      
-      <div id="flipperTerminalActions">
-        <div class="grid grid-actions">
-          
-          <select id="charSelect" aria-label="Ziel-Characteristic auswählen"></select>
-          
-          <select id="encoding" aria-label="Sende-Encoding auswählen">
-            <option value="text">Text</option>
-            <option value="hex">Hex</option>
-            <option value="base64">Base64</option>
-          </select>
-        </div>
-        
-        <textarea 
-          id="terminalInput" 
-          rows="3" 
-          placeholder="Befehl an Flipper senden…"
-          aria-label="Terminal-Eingabe"
-        ></textarea>
-        
-        <button id="btnSend" class="contrast" disabled>Senden</button>
-      </div>
-    </section>
-  </main>
+    </main>
   <footer class="container">
     <small>Web Bluetooth • GitHub Pages</small>
   </footer>
@@ -80,6 +34,54 @@
     crossorigin="anonymous"
   ></script>
   
-  <script type="module" src="./src/ui.js"></script>
+  <script type="module" src="./src/ui.js" id="appModule"></script>
+  
+  <script>
+    (function() {
+      const diagLog = document.getElementById('diagLog');
+      const preflightEl = document.getElementById('preflight');
+      const startTime = Date.now();
+
+      // 1. Ein globaler Failsafe-Logger
+      // ui.js kann diesen mitbenutzen, wenn er existiert
+      window.__diag = (msg, level = 'ERROR') => {
+        if (diagLog) {
+          diagLog.style.display = 'block';
+          const line = document.createElement('div');
+          const time = ((Date.now() - startTime) / 1000).toFixed(2);
+          line.textContent = `[${time}s] ${level}: ${msg}`;
+          if (level === 'ERROR') {
+            line.style.color = '#fecaca'; // .err Stil
+          }
+          diagLog.appendChild(line);
+        }
+      };
+
+      // 2. Modul-Ladefehler-Handler (fängt 404s, MIME-Typ-Fehler etc. ab)
+      const moduleScript = document.getElementById('appModule');
+      if (moduleScript) {
+        moduleScript.onerror = (e) => {
+          window.__diag(`KRITISCH: Das Hauptmodul (ui.js) konnte nicht geladen werden.`);
+          window.__diag(`PFAD: ${moduleScript.src}`);
+          window.__diag(`FEHLER: Prüfe die Browser-Konsole (F12 -> Konsole) auf 404-Fehler oder CORS-Probleme.`);
+          preflightEl.textContent = 'FEHLER: App-Modul (ui.js) nicht geladen';
+          preflightEl.className = 'badge error';
+        };
+      } else {
+        window.__diag('KRITISCH: Konnte das App-Modul-Skript-Tag (id="appModule") nicht finden.');
+      }
+      
+      // 3. Ein "Watchdog", der prüft, ob die App 2.5s nach dem Laden
+      // den Preflight-Status immer noch nicht geändert hat.
+      setTimeout(() => {
+        if (preflightEl && preflightEl.textContent === 'Preflight läuft…') {
+          window.__diag('WATCHDOG: App-Initialisierung (DOMContentLoaded in ui.js) wurde nie abgeschlossen.');
+          window.__diag('STATUS: Das UI-Skript ist entweder gecrasht oder wurde nie ausgeführt.');
+          preflightEl.textContent = 'FEHLER: App-Init Timeout';
+          preflightEl.className = 'badge error';
+        }
+      }, 2500); // 2.5 Sekunden warten
+    })();
+  </script>
 </body>
 </html>
