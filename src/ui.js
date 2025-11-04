@@ -7,26 +7,11 @@ if (window.__diag) {
 
 // Imports
 import {BluetoothManager} from './bluetooth.js';
-import {log, shortUuid, bufferToHex, bufferToText, bufferToBase64, encodePayload, parseManufacturerData} from './utils.js';
+import {log, shortUuid, bufferToHex, bufferToText, bufferToBase64, encodePayload, parseManufacturerData, calculateDistance} from './utils.js';
 
-// --- NEUE IMPORT-PRÜFUNG ---
-if (typeof BluetoothManager === 'undefined' || typeof log === 'undefined') {
-    throw new Error('KRITISCHER IMPORT-FEHLER: BluetoothManager oder Utils konnten nicht geladen werden.');
-}
-// --- ENDE PRÜFUNG ---
-
-
-// 1. Globale Variablen (Deklaration)
-let mgr; // WIRD IN init() ZUGEWIESEN
-let el = {}; // WIRD IN init() ZUGEWIESEN
-let discoveredDevices = new Map();
-let recordedData = [];
-const RSSI_HISTORY_LENGTH = 20;
-let chartConfigTemplate;
-
-
-// 2. Element-Selektoren
+// 1. Element-Selektoren
 const $=s=>document.querySelector(s);
+
 function safeQuery(selector, context = document) {
     const element = context.querySelector(selector);
     if (!element) {
@@ -35,12 +20,22 @@ function safeQuery(selector, context = document) {
     return element;
 }
 
+let el = {}; 
+
+// 2. Globale Zustandsvariablen
+let mgr;
+let notifyUnsub=null;
+let recordedData = []; 
+let discoveredDevices = new Map(); 
+
+// Konfiguration für die Charts
+const RSSI_HISTORY_LENGTH = 20;
+let chartConfigTemplate; 
+
 
 // 3. UI-Hilfsfunktionen
-// Diese Funktionen werden aufgerufen, *nachdem* 'mgr' und 'el' initialisiert wurden.
-
 function setPreflight(){
-    if(BluetoothManager.preflight()){ // Verwendet den importierten Manager
+    if(BluetoothManager.preflight()){
         el.preflight.textContent='Web Bluetooth: OK';
         if(window.__diag) window.__diag('Preflight Check: OK', 'INFO');
     } else {
@@ -48,7 +43,6 @@ function setPreflight(){
         if(window.__diag) window.__diag('Preflight Check: Web Bluetooth nicht unterstützt', 'WARN');
     }
 }
-
 function setConnectedUI(isConnected){
     el.connect.disabled=isConnected;
     el.disconnect.disabled=!isConnected;
@@ -78,25 +72,20 @@ function renderExplorer(tree){
       lt.append(strong, br, small);
       const act=document.createElement('div');
       act.className = 'explorer-actions';
-      
-      // Diese Listener greifen auf 'mgr' zu, was jetzt sicher ist.
       const brBtn=document.createElement('button');
       brBtn.textContent='Lesen';
       brBtn.disabled=!c.props.read;
       brBtn.addEventListener('click',async()=>{try{const buf=await mgr.read(c.uuid);log(el.log,'READ',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);}catch(e){log(el.log,'ERROR',e.message);}});
-      
       const bwBtn=document.createElement('button');
       bwBtn.textContent='Schreiben';
       bwBtn.disabled=!c.props.write;
       bwBtn.addEventListener('click',async()=>{try{const payload=prompt('Payload (als Text)');if(!payload)return;const buf=encodePayload(payload,'text');await mgr.write(c.uuid,buf);log(el.log,'WRITE',`${c.uuid}: ${payload}`);}catch(e){log(el.log,'ERROR',e.message);}});
-      
       const bnBtn=document.createElement('button');
       bnBtn.textContent='Subscribe';
       bnBtn.disabled=!c.props.notify;
       let sub=false;
       let unsub=null;
       bnBtn.addEventListener('click',async()=>{try{if(!sub){unsub=await mgr.startNotifications(c.uuid,(buf)=>{log(el.log,'NOTIFY',`${c.uuid}: HEX ${bufferToHex(buf)} TXT ${bufferToText(buf)}`);});bnBtn.textContent='Unsubscribe';sub=true;}else{unsub?.();bnBtn.textContent='Subscribe';sub=false;}}catch(e){log(el.log,'ERROR',e.message);}});
-      
       act.append(brBtn, bwBtn, bnBtn);
       row.append(lt, act);
       inner.append(row);
@@ -110,15 +99,26 @@ function renderExplorer(tree){
   }
 }
 
-function renderParsedData(parsedData) {
+/**
+ * Erstellt den HTML-Inhalt für die Manufacturer-Daten
+ * @param {object} parsedData
+ * @param {number|null} distance
+ * @returns {string} HTML-String
+ */
+function renderParsedData(parsedData, distance) {
     if (parsedData.type === 'parsed') {
         let html = '<dl class="parsed-data">';
+        
+        if (distance) {
+            html += `<dt>Distanz (ca.)</dt><dd class="distance">${distance.toFixed(2)} m</dd>`;
+        }
+        
         for (const item of parsedData.data) {
             html += `<dt>Typ</dt><dd>${item.type} (ID: ${item.companyId})</dd>`;
             if (item.uuid) html += `<dt>UUID</dt><dd>${item.uuid}</dd>`;
             if (item.major) html += `<dt>Major</dt><dd>${item.major}</dd>`;
             if (item.minor) html += `<dt>Minor</dt><dd>${item.minor}</dd>`;
-            if (item.txPower) html += `<dt>TxPower</dt><dd>${item.txPower}</dd>`;
+            if (item.txPower) html += `<dt>TxPower</dt><dd>${item.txPower} dBm</dd>`;
         }
         html += '</dl>';
         return html;
@@ -136,26 +136,47 @@ function renderParsedData(parsedData) {
     }
 }
 
+/**
+ * Verarbeitet empfangene Beacon-Daten.
+ * @param {BluetoothAdvertisingEvent} event
+ */
 function handleBeaconData(event) {
     const deviceName = event.device.name || 'Unbekanntes Gerät';
     const deviceId = event.device.id;
     const rssi = event.rssi;
     
+    // 1. Daten parsen
     const parsedData = parseManufacturerData(event.manufacturerData);
     
+    // 2. Distanz berechnen
+    let distance = null;
+    if (parsedData.txPower) {
+        distance = calculateDistance(rssi, parsedData.txPower, 3.0);
+    }
+    
+    // 3. Für JSON speichern
     recordedData.push({
         timestamp: new Date().toISOString(),
         id: deviceId,
         name: deviceName,
         rssi: rssi,
-        manufacturerData: parsedData 
+        manufacturerData: parsedData,
+        estimatedDistance: distance ? distance.toFixed(2) + 'm' : null
     });
 
-    const dataHtml = renderParsedData(parsedData);
+    // 4. Live-UI
+    const dataHtml = renderParsedData(parsedData, distance);
     
     if (!discoveredDevices.has(deviceId)) {
+        // --- GERÄT IST NEU: Karteikarte UND Chart erstellen ---
         const card = document.createElement('div');
         card.className = 'beacon-card';
+        
+        // --- NEU: Visuelles Hervorheben ---
+        if (parsedData.txPower) {
+            card.classList.add('has-txpower');
+        }
+        
         const safeDeviceId = deviceId.replace(/[^a-zA-Z0-9_-]/g, '');
         card.id = `device-${safeDeviceId}`; 
         
@@ -202,6 +223,7 @@ function handleBeaconData(event) {
         updateChart(discoveredDevices.get(deviceId), rssi);
     
     } else {
+        // --- GERÄT IST BEKANNT: Karteikarte UND Chart aktualisieren ---
         const deviceEntry = discoveredDevices.get(deviceId);
         
         deviceEntry.rssi = rssi;
@@ -211,10 +233,16 @@ function handleBeaconData(event) {
         const manufDataEl = deviceEntry.card.querySelector('[data-field="manufData"]');
         manufDataEl.innerHTML = dataHtml;
         
+        // --- NEU: Klasse aktualisieren, falls sich Daten ändern ---
+        deviceEntry.card.classList.toggle('has-txpower', !!parsedData.txPower);
+        
         updateChart(deviceEntry, rssi);
     }
 }
 
+/**
+ * Hilfsfunktion zum Aktualisieren eines Graphen mit einem neuen RSSI-Wert.
+ */
 function updateChart(deviceEntry, rssi) {
     deviceEntry.chartData.shift();
     deviceEntry.chartLabels.shift();
@@ -229,6 +257,9 @@ function updateChart(deviceEntry, rssi) {
     deviceEntry.chart.update('none'); 
 }
 
+/**
+ * Sortiert die Beacon-Liste im DOM nach dem zuletzt gesehenen RSSI.
+ */
 function sortDisplayByRssi() {
     log(el.log, 'INFO', 'Sortiere Beacon-Liste nach RSSI (stärkstes Signal zuerst)...');
     
@@ -246,14 +277,14 @@ function sortDisplayByRssi() {
 }
 
 
-// 4. Haupt-Initialisierungs-Funktion (NEU)
+// 4. Haupt-Initialisierungs-Funktion
 function init() {
     try {
         if (window.__diag) window.__diag('INIT: DOMContentLoaded Event gefeuert.', 'INFO');
 
         // 1. Abhängigkeiten prüfen
         if (typeof Chart === 'undefined') {
-            throw new Error('Chart.js (Chart) ist nicht geladen. Prüfe die index.html auf blockierte CDN-Links (z.B. Ad-Blocker).');
+            throw new Error('Chart.js (Chart) ist nicht geladen.');
         }
         if (window.__diag) window.__diag('INIT: Chart.js-Abhängigkeit OK.', 'INFO');
 
@@ -280,7 +311,7 @@ function init() {
             }
         };
 
-        // 3. DOM-Elemente sicher zuweisen (füllt 'el')
+        // 3. DOM-Elemente sicher zuweisen
         el = {
             preflight: safeQuery('#preflight'),
             connect: safeQuery('#btnConnect'),
@@ -303,7 +334,7 @@ function init() {
         // 4. Preflight-Check ausführen
         setPreflight();
         
-        // 5. Bluetooth Manager initialisieren (füllt 'mgr')
+        // 5. Bluetooth Manager initialisieren
         mgr = new BluetoothManager({
             onDisconnect: () => {
                 setConnectedUI(false);
@@ -383,7 +414,6 @@ function init() {
         if (window.__diag) window.__diag('INIT: App-Initialisierung (Listener) ERFOLGREICH.', 'INFO');
         
     } catch (e) {
-        // Dieser Block fängt jetzt ALLE Init-Fehler ab (Import, Chart, DOM)
         if (window.__diag) {
           window.__diag('KRITISCH: Fehler während der App-Initialisierung (DOMContentLoaded).');
           window.__diag(`FEHLER: ${e.message}`);
@@ -402,6 +432,4 @@ function init() {
 }
 
 // 5. Event Listener
-// Wir rufen die Haupt-Init-Funktion auf, wenn das DOM bereit ist.
 document.addEventListener('DOMContentLoaded', init);
- 
