@@ -1,4 +1,4 @@
-// Heartbeat
+// Heartbeat (MUSS die allererste Zeile sein)
 window.__app_heartbeat = true;
 
 if (window.__diag) {
@@ -19,12 +19,12 @@ import {
     parseManufacturerData,
     calculateDistance,
     startSilentAudio,
-    loadCompanyIDs // NEUER Import
+    loadCompanyIDs // Dieser Import schlägt fehl, bis utils.js aktualisiert ist
 } from './utils.js';
 
-// Import-Prüfung
-if (typeof BluetoothManager === 'undefined' || typeof log === 'undefined') {
-    throw new Error('KRITISCHER IMPORT-FEHLER: BluetoothManager oder Utils konnten nicht geladen werden.');
+// Import-Prüfung (fängt den Fehler, falls utils.js alt ist)
+if (typeof BluetoothManager === 'undefined' || typeof log === 'undefined' || typeof loadCompanyIDs === 'undefined') {
+    throw new Error('KRITISCHER IMPORT-FEHLER: Wichtige Funktionen (z.B. BluetoothManager, log, loadCompanyIDs) konnten nicht aus den Modul-Skripten (bluetooth.js, utils.js) geladen werden. Stelle sicher, dass alle JS-Dateien aktuell sind.');
 }
 
 
@@ -33,7 +33,7 @@ let mgr;
 let el = {};
 let discoveredDevices = new Map();
 let recordedData = [];
-let companyIdMap = new Map(); // NEU: Map für Hersteller-IDs
+let companyIdMap = new Map();
 const RSSI_HISTORY_LENGTH = 20;
 let chartConfigTemplate;
 const STALE_TIMEOUT = 10000; 
@@ -52,6 +52,7 @@ function safeQuery(selector, context = document) {
 
 
 // 3. UI-Hilfsfunktionen
+
 function setPreflight(){
     if(BluetoothManager.preflight()){
         el.preflight.textContent='Web Bluetooth: OK';
@@ -137,7 +138,6 @@ function renderParsedData(parsedData, distance) {
         }
         
         for (const item of parsedData.data) {
-            // --- NEU: Zeigt den vollen Herstellernamen an ---
             html += `<dt>Typ</dt><dd>${item.type} (${item.companyName})</dd>`;
             if (item.uuid) html += `<dt>UUID</dt><dd>${item.uuid}</dd>`;
             if (item.major) html += `<dt>Major</dt><dd>${item.major}</dd>`;
@@ -150,7 +150,6 @@ function renderParsedData(parsedData, distance) {
         let html = '<pre class="raw-data">';
         if (Array.isArray(parsedData.data)) {
             for (const item of parsedData.data) {
-                // --- NEU: Zeigt den Herstellernamen (oder "Unbekannt") an ---
                 html += `Hersteller: ${item.companyName}\nData: ${item.hex}\n`;
             }
         } else {
@@ -303,12 +302,11 @@ function checkStaleDevices() {
 }
 
 
-// 4. Haupt-Initialisierungs-Funktion (wird async)
-async function init() { // <-- NEU: async
+// 4. Haupt-Initialisierungs-Funktion
+async function init() {
     try {
         if (window.__diag) window.__diag('INIT: DOMContentLoaded Event gefeuert.', 'INFO');
         
-        // Erstelle eine Log-Funktion, bevor 'el' initialisiert ist
         const earlyLog = (type, msg) => {
             if (el.log) log(el.log, type, msg);
             else console.log(`[${type}] ${msg}`);
@@ -360,14 +358,13 @@ async function init() { // <-- NEU: async
         };
         if (window.__diag) window.__diag('INIT: DOM-Elemente erfolgreich geprüft und zugewiesen.', 'INFO');
         
-        // --- NEU: Lade die Hersteller-Bibliothek ---
-        // (Wir verwenden die 'earlyLog' Funktion)
+        // 4. Lade die Hersteller-Bibliothek
         companyIdMap = await loadCompanyIDs(earlyLog);
         
-        // 4. Preflight-Check ausführen
+        // 5. Preflight-Check ausführen (jetzt NACHDEM el zugewiesen wurde)
         setPreflight();
         
-        // 5. Bluetooth Manager initialisieren
+        // 6. Bluetooth Manager initialisieren
         mgr = new BluetoothManager({
             onDisconnect: () => {
                 setConnectedUI(false);
@@ -376,7 +373,7 @@ async function init() { // <-- NEU: async
             logEl: el.log
         });
         
-        // 6. Alle Event-Listener registrieren
+        // 7. Alle Event-Listener registrieren
         const logToTerminal = (type, msg) => log(el.log, type, msg);
         
         el.connect.addEventListener('click',async()=>{
@@ -490,5 +487,5 @@ async function init() { // <-- NEU: async
 }
 
 // 5. Event Listener
-document.addEventListener('DOMContentLoaded', init); // Ruft die neue async init-Funktion auf
+document.addEventListener('DOMContentLoaded', init);
  
