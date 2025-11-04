@@ -258,3 +258,40 @@ export async function loadCompanyIDs(logFn) {
         return idMap;
     }
 }
+// --- NEU: Hinzugefügte Funktion für stilles Audio ---
+
+// Eine winzige, stille WAV-Datei als Data-URI
+const SILENT_AUDIO_SRC = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
+let silentAudioElement = null;
+
+/**
+ * Spielt einen stillen Ton in einer Schleife ab.
+ * Dies ist oft ein Workaround für mobile Browser, um Audio-Kontext
+ * zu initialisieren oder die App aktiv zu halten (wichtig für Web-Bluetooth).
+ */
+export function startSilentAudio() {
+    if (silentAudioElement) {
+        return; // Verhindert mehrfaches Starten
+    }
+
+    try {
+        silentAudioElement = new Audio(SILENT_AUDIO_SRC);
+        silentAudioElement.loop = true;
+        
+        // Wichtig: .play() gibt ein Promise zurück, das fehlschlagen kann,
+        // wenn der Benutzer noch nicht mit der Seite interagiert hat.
+        silentAudioElement.play().catch(e => {
+            // Wir loggen den Fehler leise, da dies oft erwartet wird.
+            // Die Hauptsache ist, dass es beim nächsten Klick funktioniert.
+            console.warn("Stilles Audio konnte nicht automatisch starten (Benutzerinteraktion fehlt evtl.):", e.message);
+        });
+    } catch (e) {
+        // Logge den Fehler, falls das Audio-Element selbst fehlschlägt
+        if (log) { // Prüfen, ob unsere eigene log-Funktion verfügbar ist
+            log(null, 'ERROR', 'Fehler beim Erstellen des stillen Audio-Elements: ' + e.message);
+        } else {
+            console.error("Fehler beim Erstellen des stillen Audio-Elements:", e);
+        }
+    }
+}
